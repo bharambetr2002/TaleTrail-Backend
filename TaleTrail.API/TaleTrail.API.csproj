@@ -1,19 +1,44 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Use the ASP.NET Core Web SDK for building web APIs or web applications -->
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+    <!-- Target the latest .NET 8 runtime -->
+
     <Nullable>enable</Nullable>
+    <!-- Enable nullable reference types for better null safety and warnings -->
+
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Automatically includes common using directives to simplify code -->
+
     <RootNamespace>TaleTrail.API</RootNamespace>
+    <!-- Sets the root namespace for this project -->
   </PropertyGroup>
 
   <ItemGroup>
-     <PackageReference Include="DotNetEnv" Version="3.1.1" />
-     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.5" />
+    <!-- Loads environment variables from a .env file -->
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
+    <!-- ✅ Used to load Supabase credentials (URL & API key) securely from .env file -->
+
+    <!-- Enables JWT (JSON Web Token) authentication middleware -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.5" />
+    <!-- ✅ Useful if you later implement your own JWT-based auth instead of Supabase or to verify Supabase tokens manually -->
+
+    <!-- Adds OpenAPI (Swagger) support for ASP.NET Core -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.5" />
+    <!-- ✅ Helps define and expose OpenAPI/Swagger endpoints for documentation and testing -->
+
+    <!-- Allows storing secrets locally in development using `dotnet user-secrets` -->
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
+    <!-- ✅ Helpful in development when you don’t want to use .env but still want secret storage -->
+
+    <!-- Official Supabase .NET client SDK -->
     <PackageReference Include="Supabase" Version="1.1.1" />
+    <!-- ✅ Enables typed interaction with Supabase services like Auth, Database, and Realtime -->
+
+    <!-- Swagger UI generator for ASP.NET Core -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <!-- ✅ Automatically generates interactive Swagger documentation for your REST API -->
   </ItemGroup>
 
 </Project>
