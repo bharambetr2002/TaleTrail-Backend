@@ -16,13 +16,9 @@ builder.Services.AddEndpointsApiExplorer(); // Enables discovery of minimal API 
 builder.Services.AddSwaggerGen(); // Register Swagger generator for API documentation
 
 // -----------------------------------------
-// Build the application
-// -----------------------------------------
-var app = builder.Build();
-
-// -----------------------------------------
 // Load environment variables from .env file
 // -----------------------------------------
+
 Env.Load(); // Load .env file into environment variables
 
 // Manually assign environment variables to configuration keys
@@ -30,21 +26,24 @@ builder.Configuration["Supabase:Url"] = Environment.GetEnvironmentVariable("supe
 builder.Configuration["Supabase:Key"] = Environment.GetEnvironmentVariable("superbaseKey");
 
 // -----------------------------------------
+// Build the application
+// -----------------------------------------
+
+var app = builder.Build();
+
+// -----------------------------------------
 // Configure middleware pipeline
 // -----------------------------------------
 
-// ✅ Enable Swagger always (even in production for Render)
-app.UseSwagger();    // Generate Swagger JSON
+app.UseSwagger();    // Generate Swagger JSON (enabled for all environments)
 app.UseSwaggerUI();  // Serve Swagger UI
-
-// ✅ Add root test endpoint for Render health check or dev ping
-app.MapGet("/", () => "📚 TaleTrail API is up and running!"); // Test route
 
 app.UseAuthorization();    // Add middleware for handling authorization
 
 app.MapControllers();      // Map controller routes to endpoints
 
-// ✅ Make sure Render picks the correct port (8080)
-app.Urls.Add("http://*:8080");
+app.MapGet("/", () => "📚 TaleTrail API is up and running!"); // Test root route for Render health check
 
-app.Run();                 // Run the application
+app.Urls.Add("http://*:8080"); // Tell Render to bind to port 8080
+
+app.Run(); // Run the application
