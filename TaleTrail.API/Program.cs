@@ -33,15 +33,18 @@ builder.Configuration["Supabase:Key"] = Environment.GetEnvironmentVariable("supe
 // Configure middleware pipeline
 // -----------------------------------------
 
-// Enable Swagger only in development environment
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();    // Generate Swagger JSON
-    app.UseSwaggerUI();  // Serve Swagger UI
-}
+// ✅ Enable Swagger always (even in production for Render)
+app.UseSwagger();    // Generate Swagger JSON
+app.UseSwaggerUI();  // Serve Swagger UI
+
+// ✅ Add root test endpoint for Render health check or dev ping
+app.MapGet("/", () => "📚 TaleTrail API is up and running!"); // Test route
 
 app.UseAuthorization();    // Add middleware for handling authorization
 
 app.MapControllers();      // Map controller routes to endpoints
+
+// ✅ Make sure Render picks the correct port (8080)
+app.Urls.Add("http://*:8080");
 
 app.Run();                 // Run the application
