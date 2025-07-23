@@ -28,7 +28,7 @@ namespace TaleTrail.API.Controllers
         public async Task<IActionResult> Signup([FromBody] SignupRequest request)
         {
             // Call service method to register the user in Supabase
-            var result = await _authService.SignUpAsync(request.Email, request.Password);
+            var result = await _authService.SignUpAsync(request.Email!, request.Password!);
 
             // Return the response from Supabase as JSON content
             return Content(result, "application/json");
@@ -42,7 +42,7 @@ namespace TaleTrail.API.Controllers
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             // Call service method to authenticate the user in Supabase
-            var result = await _authService.SignInAsync(request.Email, request.Password);
+            var result = await _authService.SignInAsync(request.Email!, request.Password!);
 
             // Return the response as JSON content
             return Content(result, "application/json");
