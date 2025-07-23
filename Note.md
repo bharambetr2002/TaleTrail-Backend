@@ -6,38 +6,101 @@ This document explains how the backend of the TaleTrail project works, how to ru
 
 ## 1️⃣ Backend Setup (For Development)
 
-To run the backend on your machine, you need a few things installed first:
+To run the backend on your machine, make sure you have the following installed:
 
-- .NET 8 SDK (required to run the backend code)
-- MySQL (only needed if testing with a local database)
-- Any code editor like Visual Studio or VS Code
-- Git to get the project files from the repository
+- **.NET 9 SDK (v9.0.301)** - Required for building and running the backend. // but the project is gonna run on dotnet 8
+- **MySQL** (only needed for local optional DB testing)
+- **Visual Studio Code** with essential extensions (listed below)
+- **Git** - To clone the project repo
+- **EF Core CLI** - Installed globally as `dotnet-ef`
+- **ASP.NET Code Generator CLI** - Installed globally as `dotnet-aspnet-codegenerator`
 
-After opening the project in your editor, you must create a settings file to store your Supabase and JWT configuration. This is usually done using a file named `appsettings.Development.json` or `.env`.
-
-Example values you need to configure:
+> After opening the project in VS Code, create the environment file `appsettings.Development.json` or `.env` to store secrets like:
 
 - Supabase URL
-- Supabase service key
-- JWT Issuer and Audience (usually "supabase" and "authenticated")
+- Supabase Service Key
+- JWT Issuer and Audience (e.g. "supabase", "authenticated")
 
-Once your environment is ready, use your IDE to build and run the backend. This will launch the backend locally so you can test it.
+Run the backend using:
 
----
+```bash
+cd TaleTrail.APIa
+dotnet run
+```
 
-## 2️⃣ What is Render?
-
-Render is the hosting platform we are using to deploy the backend on the internet.
-
-Once deployed, Render gives us a public link where all the backend APIs are available. This link is shared with the frontend so it can communicate with the backend.
-
-All backend routes work under this base URL.
+This starts the API locally.
 
 ---
 
-## 3️⃣ Backend API Routing
+## 2️⃣ Project Structure
 
-Below are examples of backend API routes that the frontend will use:
+```
+TaleTrail.API/
+├── Controllers/          # All API controllers
+├── Models/               # Entity models like Book, Author, User, etc.
+├── DTOs/                 # Data Transfer Objects (DTOs)
+├── Services/             # Business logic (e.g., SupabaseService)
+├── Data/                 # DbContext (TaleTrailDbContext.cs)
+├── Enums/                # Enum types (e.g., ReadingStatus)
+├── appsettings.json      # Global configuration
+├── Properties/           # Launch settings
+├── Program.cs            # Entry point
+├── TaleTrail.API.csproj  # Project definition
+└── .env / .dev.env       # Env variables
+```
+
+---
+
+## 3️⃣ NuGet Packages Installed
+
+Your `.csproj` includes these dependencies:
+
+- `Microsoft.AspNetCore.Authentication.JwtBearer` (8.0.5)
+- `Microsoft.AspNetCore.OpenApi` (8.0.5)
+- `Microsoft.EntityFrameworkCore.Design` (9.0.6)
+- `Microsoft.EntityFrameworkCore.Tools` (9.0.6)
+- `Npgsql.EntityFrameworkCore.PostgreSQL` (9.0.4)
+- `Microsoft.VisualStudio.Web.CodeGeneration.Design` (9.0.0)
+- `Microsoft.Extensions.Configuration.UserSecrets` (8.0.0)
+- `Swashbuckle.AspNetCore` (6.5.0)
+- `DotNetEnv` (3.1.1)
+- `Supabase` (1.1.1)
+
+---
+
+## 4️⃣ Important Tools & Extensions
+
+Global tools installed:
+
+- `dotnet-ef` (9.0.6)
+- `dotnet-aspnet-codegenerator` (9.0.0)
+
+Recommended VS Code extensions:
+
+- `ms-dotnettools.csharp`
+- `ms-dotnettools.csdevkit`
+- `jmrog.vscode-nuget-package-manager`
+- `kreativ-software.csharpextensions`
+- `josefpihrt-vscode.roslynator`
+- `eamodio.gitlens`, `esbenp.prettier-vscode`, `dbaeumer.vscode-eslint`
+
+---
+
+## 5️⃣ What is Render?
+
+Render is our backend deployment host. After deployment, it gives a public URL which the frontend uses to hit API endpoints.
+
+Example:
+
+```
+https://taletrail-api.onrender.com/api/books
+```
+
+Make sure to configure this base URL in the frontend's Axios or fetch configs.
+
+---
+
+## 6️⃣ API Routing Examples
 
 | Purpose          | Endpoint                | Method |
 | ---------------- | ----------------------- | ------ |
@@ -48,29 +111,44 @@ Below are examples of backend API routes that the frontend will use:
 | Add Book         | /api/books              | POST   |
 | Review a Book    | /api/books/{id}/reviews | POST   |
 
-The frontend connects to these routes using fetch or axios. You must make sure the base URL is set to the Render link inside the frontend code.
+---
+
+## 7️⃣ Docker Usage
+
+We’ve added Docker support to:
+
+- Isolate backend from local machine
+- Ensure consistent dev & prod environments
+- Make onboarding easier for new teammates
+
+Running Docker will spin up a container with all necessary backend dependencies so everyone can test without setup issues.
 
 ---
 
-## 4️⃣ What is Docker and Why Are We Using It?
+## ✅ Current Status (as of June 26, 2025)
 
-Docker is a tool that helps package our application so it works the same on any computer.
+- ✅ .NET 8 environment configured
+- ✅ Supabase Auth & DB connected
+- ✅ DTOs, Models, Enums created
+- ✅ `TaleTrailDbContext` implemented
+- ✅ SupabaseService done
+- ✅ AuthController ready
+- ⚠️ REST Controllers pending manual creation (due to codegen issues)
+- ✅ Swagger, JWT setup underway
+- ✅ VS Code extensions installed
+- 🚧 CI/CD partly integrated
 
-We added Docker to this project for three main reasons:
+---
 
-1. It creates a clean environment that avoids version or setup issues.
-2. It allows anyone on the team to run the backend without worrying about local configuration.
-3. It makes deployment easier and more consistent on platforms like Render.
+## 🧠 Notes for Developers
 
-When Docker is used, it creates a container (like a lightweight virtual machine) with everything the backend needs already installed. This helps reduce errors and improves teamwork.
+- Always keep your `.env` or `appsettings.Development.json` synced with Supabase values.
+- Avoid committing secrets or service keys.
+- Use Postman/ThunderClient to test endpoints locally.
+- Scaffold or manually write controllers for models like `Book`, `Author`, etc.
+- If you face codegen issues with PostgreSQL, fallback to manual API building.
+- Keep Docker in sync for consistent builds.
 
 ---
 
-## 5️⃣ Summary for Teammates
-
-- The backend is built with .NET 8 and connects to Supabase for data and authentication.
-- The project is deployed on Render and accessible via a public URL.
-- The frontend should call backend APIs using the Render link.
-- Docker is used to make the backend portable, consistent, and easier to run or deploy.
-
----
+You're ready to contribute to TaleTrail's backend 🚀
