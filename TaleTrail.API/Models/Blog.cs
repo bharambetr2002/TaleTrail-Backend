@@ -1,3 +1,4 @@
+namespace TaleTrail.API.Models{
 public class Blog
 {
     public int Id { get; set; }
@@ -7,4 +8,5 @@ public class Blog
     public DateTime CreatedAt { get; set; }
 
     public User? User { get; set; }
+}
 }

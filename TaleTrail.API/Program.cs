@@ -1,7 +1,7 @@
 using TaleTrail.API.Services;
-using DotNetEnv; // For loading environment variables from a .env file
+using DotNetEnv;
+using TaleTrail.API.Services.Interfaces; // For loading environment variables from a .env file
 
-// Create a new WebApplicationBuilder instance
 var builder = WebApplication.CreateBuilder(args);
 
 // -----------------------------------------
@@ -10,10 +10,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(); // Add support for MVC controllers
 
-builder.Services.AddSingleton<SupabaseAuthService>(); // Register SupabaseAuthService as a singleton
+builder.Services.AddSingleton<SupabaseAuthService>(); // Supabase Auth handler
 
-builder.Services.AddEndpointsApiExplorer(); // Enables discovery of minimal API endpoints (used for Swagger)
-builder.Services.AddSwaggerGen(); // Register Swagger generator for API documentation
+builder.Services.AddScoped<IBookService, BookService>(); // ✅ Register BookService for BookController
+
+// Future Services to register here:
+// builder.Services.AddScoped<IBlogService, BlogService>();
+// builder.Services.AddScoped<IReviewService, ReviewService>();
+// etc.
+
+builder.Services.AddEndpointsApiExplorer(); // Enables Swagger
+builder.Services.AddSwaggerGen();           // Generates Swagger UI
 
 // -----------------------------------------
 // Load environment variables from .env file
@@ -35,15 +42,15 @@ var app = builder.Build();
 // Configure middleware pipeline
 // -----------------------------------------
 
-app.UseSwagger();    // Generate Swagger JSON (enabled for all environments)
-app.UseSwaggerUI();  // Serve Swagger UI
+app.UseSwagger();         // Enable Swagger docs
+app.UseSwaggerUI();       // Serve Swagger UI
 
-app.UseAuthorization();    // Add middleware for handling authorization
+app.UseAuthorization();   // Apply authorization middleware
 
-app.MapControllers();      // Map controller routes to endpoints
+app.MapControllers();     // Map controller endpoints
 
-app.MapGet("/", () => "📚 TaleTrail API is up and running!"); // Test root route for Render health check
+app.MapGet("/", () => "📚 TaleTrail API is up and running!"); // Health check root
 
-app.Urls.Add("http://*:8080"); // Tell Render to bind to port 8080
+app.Urls.Add("http://*:8080"); // Bind for Render (host:port)
 
-app.Run(); // Run the application
+app.Run(); // Run the app
