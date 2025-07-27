@@ -1,10 +1,8 @@
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using TaleTrail.API.DTOs.Auth;
-using TaleTrail.API.Models; // Needed for `User` class
 
 namespace TaleTrail.API.Services
 {
@@ -17,56 +15,63 @@ namespace TaleTrail.API.Services
         public SupabaseAuthService(IConfiguration config)
         {
             _httpClient = new HttpClient();
-            _supabaseUrl = config["Supabase:Url"] ?? throw new ArgumentNullException("Supabase:Url");
-            _supabaseKey = config["Supabase:Key"] ?? throw new ArgumentNullException("Supabase:Key");
+            _supabaseUrl = config["Supabase:Url"]!;
+            _supabaseKey = config["Supabase:Key"]!;
         }
 
-        public async Task<string> SignUpAsync(AuthRequestDto request)
+        public async Task<object> SignUpAsync(AuthRequestDto dto)
         {
-            var url = $"{_supabaseUrl}/auth/v1/signup";
-            var payload = JsonSerializer.Serialize(new { email = request.Email, password = request.Password });
-            var content = new StringContent(payload, Encoding.UTF8, "application/json");
-
-            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            var payload = new
             {
-                Content = content
+                email = dto.Email,
+                password = dto.Password
             };
-            req.Headers.Add("apikey", _supabaseKey);
 
-            var response = await _httpClient.SendAsync(req);
-            return await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.PostAsync(
+                $"{_supabaseUrl}/auth/v1/signup",
+                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            );
+
+            var content = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<object>(content);
         }
 
-        public async Task<string> SignInAsync(AuthRequestDto request)
+        public async Task<object> SignInAsync(AuthRequestDto dto)
         {
-            var url = $"{_supabaseUrl}/auth/v1/token?grant_type=password";
-            var payload = JsonSerializer.Serialize(new { email = request.Email, password = request.Password });
-            var content = new StringContent(payload, Encoding.UTF8, "application/json");
-
-            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            var payload = new
             {
-                Content = content
+                email = dto.Email,
+                password = dto.Password
             };
-            req.Headers.Add("apikey", _supabaseKey);
 
-            var response = await _httpClient.SendAsync(req);
-            return await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.PostAsync(
+                $"{_supabaseUrl}/auth/v1/token?grant_type=password",
+                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            );
+
+            var content = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<object>(content);
         }
 
-        public async Task<User?> GetUserFromToken(string accessToken)
+        public async Task<UserDto?> GetUserFromToken(string token)
         {
-            var url = $"{_supabaseUrl}/auth/v1/user";
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_supabaseUrl}/auth/v1/user");
+            request.Headers.Add("Authorization", $"Bearer {token}");
 
-            var req = new HttpRequestMessage(HttpMethod.Get, url);
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            req.Headers.Add("apikey", _supabaseKey);
+            var response = await _httpClient.SendAsync(request);
 
-            var response = await _httpClient.SendAsync(req);
             if (!response.IsSuccessStatusCode)
                 return null;
 
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<User>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            return new UserDto
+            {
+                Id = root.GetProperty("id").GetString(),
+                Email = root.GetProperty("email").GetString() ?? ""
+            };
         }
     }
 }

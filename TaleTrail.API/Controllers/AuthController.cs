@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using TaleTrail.API.DTOs;
 using TaleTrail.API.DTOs.Auth;
 using TaleTrail.API.Services;
 
@@ -45,13 +44,7 @@ namespace TaleTrail.API.Controllers
             if (user == null)
                 return Unauthorized("Invalid or expired token");
 
-            var userDto = new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email ?? ""
-            };
-
-            return Ok(userDto);
+            return Ok(user);
         }
     }
 }
