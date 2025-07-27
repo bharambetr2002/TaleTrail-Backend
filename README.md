@@ -70,3 +70,9 @@ This document explains all the NuGet packages installed in the **TaleTrail Backe
   3. File storage (e.g., book cover images)
 
 - JWT validation setup is possible if we move towards a more secure backend session system.
+
+## Contributors
+- Mangesh Avhad
+- Tanmay Bharambe
+- Om Khatri
+
