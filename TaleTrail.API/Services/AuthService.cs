@@ -1,78 +1,122 @@
-using TaleTrail.API.Models;
-using TaleTrail.API.DTOs;
+using TaleTrail.API.DTOs.Auth;
+using TaleTrail.API.DTOs.Auth.Signup;
 using TaleTrail.API.Exceptions;
 using TaleTrail.API.Helpers;
+using TaleTrail.API.Models;
 
 namespace TaleTrail.API.Services
 {
-    public class BookService
+    public class AuthService
     {
         private readonly SupabaseService _supabase;
+        private readonly ILogger<AuthService> _logger;
 
-        public BookService(SupabaseService supabase)
+        public AuthService(SupabaseService supabase, ILogger<AuthService> logger)
         {
             _supabase = supabase;
+            _logger = logger;
         }
 
-        public async Task<List<Book>> GetAllBooksAsync()
+        public async Task<UserResponseDTO> SignupAsync(SignupDTO request)
         {
-            var response = await _supabase.Client.From<Book>().Get();
-            return response.Models;
-        }
+            ValidationHelper.ValidateModel(request);
 
-        public async Task<Book> GetBookByIdAsync(Guid id)
-        {
-            var response = await _supabase.Client.From<Book>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                .Get();
+            if (!ValidationHelper.IsValidEmail(request.Email))
+                throw new ValidationException("Invalid email format");
 
-            var book = response.Models.FirstOrDefault();
-            if (book == null)
-                throw new NotFoundException($"Book with ID {id} not found");
+            var session = await _supabase.Client.Auth.SignUp(request.Email, request.Password);
 
-            return book;
-        }
+            if (session?.User == null)
+                throw new AppException("Signup failed - no user created");
 
-        public async Task<Book> CreateBookAsync(BookDto bookDto, Guid userId)
-        {
-            ValidationHelper.ValidateModel(bookDto);
-
-            var book = new Book
+            var user = new User
             {
-                Id = Guid.NewGuid(),
-                Title = bookDto.Title,
-                Description = bookDto.Description,
-                CoverUrl = bookDto.CoverUrl,
-                Language = bookDto.Language,
-                PublicationYear = bookDto.PublicationYear,
-                UserId = userId,
+                Id = Guid.Parse(session.User.Id),
+                Email = request.Email,
+                FullName = request.FullName,
                 CreatedAt = DateTime.UtcNow
             };
 
-            var response = await _supabase.Client.From<Book>().Insert(book);
-            return response.Models.First();
+            await _supabase.Client.From<User>().Insert(user);
+
+            return new UserResponseDTO
+            {
+                Email = session.User.Email ?? request.Email,
+                AccessToken = session.AccessToken ?? string.Empty,
+                RefreshToken = session.RefreshToken ?? string.Empty,
+                UserId = Guid.Parse(session.User.Id),
+                FullName = request.FullName
+            };
         }
 
-        public async Task<Book> UpdateBookAsync(Guid id, BookDto bookDto)
+        public async Task<UserResponseDTO> LoginAsync(LoginDTO request)
         {
-            ValidationHelper.ValidateModel(bookDto);
+            ValidationHelper.ValidateModel(request);
 
-            var existingBook = await GetBookByIdAsync(id);
+            var session = await _supabase.Client.Auth.SignIn(request.Email, request.Password);
 
-            existingBook.Title = bookDto.Title;
-            existingBook.Description = bookDto.Description;
-            existingBook.CoverUrl = bookDto.CoverUrl;
-            existingBook.Language = bookDto.Language;
-            existingBook.PublicationYear = bookDto.PublicationYear;
+            if (session?.User == null)
+                throw new AppException("Invalid email or password");
 
-            var response = await _supabase.Client.From<Book>().Update(existingBook);
-            return response.Models.First();
+            var userResponse = await _supabase.Client.From<User>()
+                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, session.User.Id)
+                .Get();
+
+            var user = userResponse.Models.FirstOrDefault();
+
+            return new UserResponseDTO
+            {
+                Email = session.User.Email ?? request.Email,
+                AccessToken = session.AccessToken ?? string.Empty,
+                RefreshToken = session.RefreshToken ?? string.Empty,
+                UserId = Guid.Parse(session.User.Id),
+                FullName = user?.FullName
+            };
         }
 
-        public async Task DeleteBookAsync(Guid id)
+        public async Task<bool> LogoutAsync()
         {
-            var book = await GetBookByIdAsync(id);
-            await _supabase.Client.From<Book>().Delete(book);
+            try
+            {
+                await _supabase.Client.Auth.SignOut();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Logout failed");
+                return false;
+            }
+        }
+
+        public async Task<UserResponseDTO?> RefreshTokenAsync(string refreshToken)
+        {
+            try
+            {
+                var session = await _supabase.Client.Auth.RefreshSession(refreshToken);
+
+                if (session?.User == null)
+                    return null;
+
+                var userResponse = await _supabase.Client.From<User>()
+                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, session.User.Id)
+                    .Get();
+
+                var user = userResponse.Models.FirstOrDefault();
+
+                return new UserResponseDTO
+                {
+                    Email = session.User.Email ?? string.Empty,
+                    AccessToken = session.AccessToken ?? string.Empty,
+                    RefreshToken = session.RefreshToken ?? string.Empty,
+                    UserId = Guid.Parse(session.User.Id),
+                    FullName = user?.FullName
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Token refresh failed");
+                return null;
+            }
         }
     }
 }
