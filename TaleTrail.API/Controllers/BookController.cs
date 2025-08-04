@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Services;
-using TaleTrail.API.Models;
-using System;
-using System.Threading.Tasks;
+using TaleTrail.API.DTOs;
+using TaleTrail.API.Helpers;
 
 namespace TaleTrail.API.Controllers
 {
@@ -10,61 +9,48 @@ namespace TaleTrail.API.Controllers
     [Route("api/[controller]")]
     public class BookController : ControllerBase
     {
-        private readonly SupabaseService _supabase;
+        private readonly BookService _bookService;
 
-        public BookController(SupabaseService supabase)
+        public BookController(BookService bookService)
         {
-            _supabase = supabase;
+            _bookService = bookService;
         }
 
-        // GET: api/book
         [HttpGet]
         public async Task<IActionResult> GetAllBooks()
         {
-            var response = await _supabase.Client.From<Book>().Get();
-            return Ok(response.Models);
+            var books = await _bookService.GetAllBooksAsync();
+            return Ok(ApiResponse<object>.SuccessResult(books));
         }
 
-        // GET: api/book/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetBookById(Guid id)
         {
-            var response = await _supabase.Client
-                .From<Book>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                .Get();
-
-            return Ok(response.Models);
+            var book = await _bookService.GetBookByIdAsync(id);
+            return Ok(ApiResponse<object>.SuccessResult(book));
         }
 
-        // POST: api/book
         [HttpPost]
-        public async Task<IActionResult> AddBook([FromBody] Book book)
+        public async Task<IActionResult> CreateBook([FromBody] BookDto bookDto)
         {
-            book.Id = Guid.NewGuid();
-            book.CreatedAt = DateTime.UtcNow;
-
-            var response = await _supabase.Client.From<Book>().Insert(book);
-            return Ok(response.Models);
+            // In a real app, you'd get userId from JWT token
+            var userId = Guid.NewGuid(); // Placeholder
+            var book = await _bookService.CreateBookAsync(bookDto, userId);
+            return Ok(ApiResponse<object>.SuccessResult(book, "Book created successfully"));
         }
 
-        // PUT: api/book/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateBook(Guid id, [FromBody] Book updatedBook)
+        public async Task<IActionResult> UpdateBook(Guid id, [FromBody] BookDto bookDto)
         {
-            updatedBook.Id = id;
-
-            var response = await _supabase.Client.From<Book>().Update(updatedBook);
-            return Ok(response.Models);
+            var book = await _bookService.UpdateBookAsync(id, bookDto);
+            return Ok(ApiResponse<object>.SuccessResult(book, "Book updated successfully"));
         }
 
-        // DELETE: api/book/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteBook(Guid id)
         {
-            var book = new Book { Id = id };
-            var response = await _supabase.Client.From<Book>().Delete(book);
-            return Ok(response.Models);
+            await _bookService.DeleteBookAsync(id);
+            return Ok(ApiResponse.SuccessResult("Book deleted successfully"));
         }
     }
 }
