@@ -1,56 +1,80 @@
-using Microsoft.AspNetCore.Mvc;
-using TaleTrail.API.Services;
-using TaleTrail.API.DTOs;
 using TaleTrail.API.Models;
+using TaleTrail.API.DTOs;
+using TaleTrail.API.Exceptions;
+using TaleTrail.API.Helpers;
 
-namespace TaleTrail.API.Controllers
+namespace TaleTrail.API.Services
 {
-    [ApController]
-    [Route("api/[controller]")]
-    public class BookController : ControllerBase
+    public class BookService
     {
-        private readonly BookService _bookService;
-        private readonly ILogger<BookController> _logger;
+        private readonly SupabaseService _supabase;
+        private readonly ILogger<BookService> _logger;
 
-        public BookController(BookService bookService, ILogger<BookController> logger)
+        public BookService(SupabaseService supabase, ILogger<BookService> logger)
         {
-            _bookService = bookService;
+            _supabase = supabase;
             _logger = logger;
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetAllBooks()
+        public async Task<List<Book>> GetAllBooksAsync()
         {
-            var books = await _bookService.GetAllBooksAsync();
-            return Ok(books);
+            var response = await _supabase.Client.From<Book>().Get();
+            return response.Models;
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetBookById(Guid id)
+        public async Task<Book> GetBookByIdAsync(Guid id)
         {
-            var book = await _bookService.GetBookByIdAsync(id);
-            return Ok(book);
+            var response = await _supabase.Client.From<Book>()
+                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
+                .Get();
+
+            var book = response.Models.FirstOrDefault();
+            if (book == null)
+                throw new NotFoundException($"Book with ID {id} not found");
+
+            return book;
         }
 
-        [HttpPost("{userId}")]
-        public async Task<IActionResult> CreateBook(Guid userId, [FromBody] BookDTO dto)
+        public async Task<Book> CreateBookAsync(BookDto bookDto, Guid userId)
         {
-            var book = await _bookService.CreateBookAsync(dto, userId);
-            return CreatedAtAction(nameof(GetBookById), new { id = book.Id }, book);
+            ValidationHelper.ValidateModel(bookDto);
+
+            var book = new Book
+            {
+                Id = Guid.NewGuid(),
+                Title = bookDto.Title,
+                Description = bookDto.Description,
+                CoverUrl = bookDto.CoverUrl,
+                Language = bookDto.Language,
+                PublicationYear = bookDto.PublicationYear,
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var response = await _supabase.Client.From<Book>().Insert(book);
+            return response.Models.First();
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateBook(Guid id, [FromBody] BookDTO dto)
+        public async Task<Book> UpdateBookAsync(Guid id, BookDto bookDto)
         {
-            var updated = await _bookService.UpdateBookAsync(id, dto);
-            return Ok(updated);
+            ValidationHelper.ValidateModel(bookDto);
+
+            var existingBook = await GetBookByIdAsync(id);
+
+            existingBook.Title = bookDto.Title;
+            existingBook.Description = bookDto.Description;
+            existingBook.CoverUrl = bookDto.CoverUrl;
+            existingBook.Language = bookDto.Language;
+            existingBook.PublicationYear = bookDto.PublicationYear;
+
+            var response = await _supabase.Client.From<Book>().Update(existingBook);
+            return response.Models.First();
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteBook(Guid id)
+        public async Task DeleteBookAsync(Guid id)
         {
-            await _bookService.DeleteBookAsync(id);
-            return NoContent();
+            var book = await GetBookByIdAsync(id);
+            await _supabase.Client.From<Book>().Delete(book);
         }
     }
 }
