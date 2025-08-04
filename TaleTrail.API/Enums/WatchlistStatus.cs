@@ -1,0 +1,1 @@
+public enum WatchlistStatus { ToRead, Reading, Completed, Dropped }

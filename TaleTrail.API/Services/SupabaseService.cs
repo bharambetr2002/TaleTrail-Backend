@@ -1,19 +1,28 @@
-using System.Net.Http;
+using Supabase;
+using Supabase.Interfaces;
+using TaleTrail.API.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace TaleTrail.API.Services
 {
     public class SupabaseService
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _supabaseUrl;
-        private readonly string _supabaseKey;
+        private readonly Client _client;
 
         public SupabaseService(IConfiguration config)
         {
-            _httpClient = new HttpClient();
-            _supabaseUrl = config["Supabase:Url"] ?? throw new ArgumentNullException("Supabase:Url");
-            _supabaseKey = config["Supabase:Key"] ?? throw new ArgumentNullException("Supabase:Key");
+            var supabaseUrl = config["Supabase:Url"];
+            var supabaseKey = config["Supabase:Key"];
+
+            var options = new SupabaseOptions
+            {
+                AutoRefreshToken = true
+            };
+
+            _client = new Client(supabaseUrl, supabaseKey, options);
+            _client.InitializeAsync().Wait(); // Important!
         }
+
+        public Client Client => _client;
     }
 }
