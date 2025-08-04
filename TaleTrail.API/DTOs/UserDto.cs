@@ -1,8 +1,10 @@
-namespace TaleTrail.API.DTOs.Auth
+namespace TaleTrail.API.DTOs
 {
     public class UserDto
     {
-        public string? Id { get; set; }
-        public string? Email { get; set; }
+        public string FullName { get; set; }
+        public string Email { get; set; }
+        public string? AvatarUrl { get; set; }
+        public string? Bio { get; set; }
     }
 }

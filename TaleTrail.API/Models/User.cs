@@ -1,18 +1,26 @@
-using System.ComponentModel.DataAnnotations;
+using Supabase.Postgrest.Models;
+using Supabase.Postgrest.Attributes;
 
-namespace TaleTrail.API.Models
+namespace TaleTrail.API.Models;
+
+[Table("users")]
+public class User : BaseModel
 {
-    public class User
-    {
-        [Key]
-        public Guid Id { get; set; }
+    [PrimaryKey("id", false)]
+    public Guid Id { get; set; }
 
-        [Required]
-        [EmailAddress]
-        public string? Email { get; set; }
+    [Column("full_name")]
+    public string FullName { get; set; }
 
-        public string? FullName { get; set; }
+    [Column("email")]
+    public string Email { get; set; }
 
-        public string? Role { get; set; } = "user";
-    }
+    [Column("avatar_url")]
+    public string? AvatarUrl { get; set; }
+
+    [Column("bio")]
+    public string? Bio { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; }
 }

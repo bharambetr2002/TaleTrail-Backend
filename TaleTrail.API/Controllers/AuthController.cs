@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using TaleTrail.API.DTOs.Auth;
+using Supabase.Gotrue;
 using TaleTrail.API.Services;
+using TaleTrail.API.DTOs.Auth.Signup;
 
 namespace TaleTrail.API.Controllers
 {
@@ -8,43 +9,79 @@ namespace TaleTrail.API.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly SupabaseAuthService _authService;
+        private readonly SupabaseService _supabase;
 
-        public AuthController(SupabaseAuthService authService)
+        public AuthController(SupabaseService supabase)
         {
-            _authService = authService;
+            _supabase = supabase;
         }
 
         [HttpPost("signup")]
-        public async Task<IActionResult> SignUp([FromBody] AuthRequestDto dto)
+        public async Task<IActionResult> Signup([FromBody] SignupDTO request)
         {
-            var result = await _authService.SignUpAsync(dto);
-            return Ok(result);
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(new { message = "Email and password are required." });
+
+            try
+            {
+                var session = await _supabase.Client.Auth.SignUp(request.Email, request.Password);
+
+                if (session == null || session.User == null)
+                    return StatusCode(500, new { message = "Signup failed. Supabase returned null user." });
+
+                return Ok(new
+                {
+                    email = session.User.Email,
+                    accessToken = session.AccessToken,
+                    refreshToken = session.RefreshToken
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] AuthRequestDto dto)
+        public async Task<IActionResult> Login([FromBody] LoginDTO request)
         {
-            var result = await _authService.SignInAsync(dto);
-            return Ok(result);
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(new { message = "Email and password are required." });
+
+            try
+            {
+                var session = await _supabase.Client.Auth.SignIn(request.Email, request.Password);
+
+                if (session == null || session.User == null)
+                    return Unauthorized(new { message = "Invalid credentials or login failed." });
+
+                return Ok(new
+                {
+                    email = session.User.Email,
+                    accessToken = session.AccessToken,
+                    refreshToken = session.RefreshToken
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
-        [HttpGet("me")]
-        public async Task<IActionResult> Me()
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
         {
-            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
-
-            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
-                return Unauthorized("Missing or invalid Authorization header");
-
-            var token = authHeader.Substring("Bearer ".Length).Trim();
-
-            var user = await _authService.GetUserFromToken(token);
-
-            if (user == null)
-                return Unauthorized("Invalid or expired token");
-
-            return Ok(user);
+            try
+            {
+                await _supabase.Client.Auth.SignOut();
+                return Ok(new { message = "Logged out successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
+
+
 }
