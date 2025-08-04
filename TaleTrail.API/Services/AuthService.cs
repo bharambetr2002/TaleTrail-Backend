@@ -1,3 +1,4 @@
+using Supabase.Gotrue;
 using TaleTrail.API.DTOs.Auth;
 using TaleTrail.API.DTOs.Auth.Signup;
 using TaleTrail.API.Exceptions;
@@ -22,30 +23,32 @@ namespace TaleTrail.API.Services
             ValidationHelper.ValidateModel(request);
 
             if (!ValidationHelper.IsValidEmail(request.Email))
-                throw new ValidationException("Invalid email format");
+                throw new ValidationException("Invalid email format.");
 
-            var session = await _supabase.Client.Auth.SignUp(request.Email, request.Password);
+            _logger.LogInformation("Signing up user with email: {Email}", request.Email);
 
-            if (session?.User == null)
-                throw new AppException("Signup failed - no user created");
+            var result = await _supabase.Client.Auth.SignUp(request.Email, request.Password);
 
-            var user = new User
+            if (result?.User == null)
+                throw new AppException("Signup failed. User was not created by Supabase.");
+
+            var userProfile = new Models.User
             {
-                Id = Guid.Parse(session.User.Id),
+                Id = Guid.Parse(result.User.Id ?? throw new AppException("User ID missing")),
                 Email = request.Email,
                 FullName = request.FullName,
                 CreatedAt = DateTime.UtcNow
             };
 
-            await _supabase.Client.From<User>().Insert(user);
+            await _supabase.Client.From<Models.User>().Insert(userProfile);
 
             return new UserResponseDTO
             {
-                Email = session.User.Email ?? request.Email,
-                AccessToken = session.AccessToken ?? string.Empty,
-                RefreshToken = session.RefreshToken ?? string.Empty,
-                UserId = Guid.Parse(session.User.Id),
-                FullName = request.FullName
+                Email = userProfile.Email,
+                FullName = userProfile.FullName,
+                UserId = userProfile.Id,
+                AccessToken = result.AccessToken ?? string.Empty,
+                RefreshToken = result.RefreshToken ?? string.Empty
             };
         }
 
@@ -53,24 +56,29 @@ namespace TaleTrail.API.Services
         {
             ValidationHelper.ValidateModel(request);
 
+            _logger.LogInformation("Logging in user with email: {Email}", request.Email);
+
             var session = await _supabase.Client.Auth.SignIn(request.Email, request.Password);
 
             if (session?.User == null)
-                throw new AppException("Invalid email or password");
+                throw new AppException("Invalid email or password.");
 
-            var userResponse = await _supabase.Client.From<User>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, session.User.Id)
+            var userId = session.User.Id ?? throw new AppException("User ID missing from session.");
+
+            var response = await _supabase.Client.From<Models.User>()
+                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, userId)
                 .Get();
 
-            var user = userResponse.Models.FirstOrDefault();
+            var user = response.Models.FirstOrDefault()
+                       ?? throw new NotFoundException("User profile not found in database.");
 
             return new UserResponseDTO
             {
-                Email = session.User.Email ?? request.Email,
+                Email = user.Email,
+                FullName = user.FullName,
+                UserId = user.Id,
                 AccessToken = session.AccessToken ?? string.Empty,
-                RefreshToken = session.RefreshToken ?? string.Empty,
-                UserId = Guid.Parse(session.User.Id),
-                FullName = user?.FullName
+                RefreshToken = session.RefreshToken ?? string.Empty
             };
         }
 
@@ -79,44 +87,46 @@ namespace TaleTrail.API.Services
             try
             {
                 await _supabase.Client.Auth.SignOut();
+                _logger.LogInformation("User logged out successfully.");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Logout failed");
+                _logger.LogError(ex, "Logout failed.");
                 return false;
             }
         }
 
-        public async Task<UserResponseDTO?> RefreshTokenAsync(string refreshToken)
+        public async Task<UserResponseDTO?> RefreshTokenAsync()
         {
-            try
-            {
-                var session = await _supabase.Client.Auth.RefreshSession(refreshToken);
+            var currentSession = _supabase.Client.Auth.CurrentSession;
 
-                if (session?.User == null)
-                    return null;
+            if (currentSession?.RefreshToken == null)
+                throw new AppException("No refresh token available to refresh session.");
 
-                var userResponse = await _supabase.Client.From<User>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, session.User.Id)
-                    .Get();
+            _logger.LogInformation("Refreshing user session...");
 
-                var user = userResponse.Models.FirstOrDefault();
+            var refreshed = await _supabase.Client.Auth.RefreshSession();
 
-                return new UserResponseDTO
-                {
-                    Email = session.User.Email ?? string.Empty,
-                    AccessToken = session.AccessToken ?? string.Empty,
-                    RefreshToken = session.RefreshToken ?? string.Empty,
-                    UserId = Guid.Parse(session.User.Id),
-                    FullName = user?.FullName
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Token refresh failed");
+            if (refreshed?.User == null)
                 return null;
-            }
+
+            var userId = refreshed.User.Id ?? throw new AppException("User ID missing after refresh.");
+
+            var userResponse = await _supabase.Client.From<Models.User>()
+                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, userId)
+                .Get();
+
+            var user = userResponse.Models.FirstOrDefault();
+
+            return new UserResponseDTO
+            {
+                Email = refreshed.User.Email ?? string.Empty,
+                FullName = user?.FullName ?? string.Empty,
+                UserId = Guid.Parse(userId),
+                AccessToken = refreshed.AccessToken ?? string.Empty,
+                RefreshToken = refreshed.RefreshToken ?? string.Empty
+            };
         }
     }
 }
