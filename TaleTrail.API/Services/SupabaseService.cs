@@ -1,7 +1,5 @@
 using Supabase;
 using Supabase.Interfaces;
-using TaleTrail.API.Models;
-using Microsoft.Extensions.Configuration;
 
 namespace TaleTrail.API.Services
 {
@@ -9,18 +7,31 @@ namespace TaleTrail.API.Services
     {
         private readonly Client _client;
 
-        public SupabaseService(IConfiguration config)
+        public SupabaseService()
         {
-            var supabaseUrl = config["Supabase:Url"];
-            var supabaseKey = config["Supabase:Key"];
+            // Get credentials from environment variables (required for Render)
+            var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL")
+                ?? throw new InvalidOperationException("SUPABASE_URL environment variable is missing");
+
+            var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY")
+                ?? throw new InvalidOperationException("SUPABASE_KEY environment variable is missing");
 
             var options = new SupabaseOptions
             {
-                AutoRefreshToken = true
+                AutoRefreshToken = true,
+                AutoConnectRealtime = false // Disable realtime for API-only usage
             };
 
             _client = new Client(supabaseUrl, supabaseKey, options);
-            _client.InitializeAsync().Wait(); // Important!
+
+            try
+            {
+                _client.InitializeAsync().Wait(TimeSpan.FromSeconds(30));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Failed to initialize Supabase client", ex);
+            }
         }
 
         public Client Client => _client;

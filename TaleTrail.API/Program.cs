@@ -96,11 +96,12 @@ builder.Services.AddSwaggerGen(opt =>
     });
 });
 
-// ✅ Use HTTP-only in production
-if (!builder.Environment.IsDevelopment())
+// ✅ Configure Kestrel for Render deployment
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    builder.WebHost.ConfigureKestrel(opt => opt.ListenAnyIP(8080));
-}
+    serverOptions.ListenAnyIP(int.Parse(port));
+});
 
 var app = builder.Build();
 
@@ -109,10 +110,15 @@ app.UseMiddleware<ErrorHandlerMiddleware>();
 app.UseCors("AppCors");
 app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment())
+// ✅ Enable Swagger in production for Render
+if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABLE_SWAGGER") == "true")
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseStaticFiles();
@@ -129,7 +135,8 @@ app.MapGet("/", () => Results.Ok(new
     version = "1.0.0",
     status = "healthy",
     environment = app.Environment.EnvironmentName,
-    time = DateTime.UtcNow
+    time = DateTime.UtcNow,
+    port = port
 }));
 
 app.Run();

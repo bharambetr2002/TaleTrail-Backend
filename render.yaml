@@ -2,8 +2,6 @@ services:
   - type: web
     name: taletrail-api
     env: docker
-    repo: https://github.com/yourusername/taletrail.git
-    branch: main
     dockerfilePath: ./Dockerfile
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
@@ -11,12 +9,11 @@ services:
       - key: ENABLE_SWAGGER
         value: true
       - key: SUPABASE_URL
-        fromService:
-          type: web
-          name: taletrail-api
-          envVarKey: SUPABASE_URL
+        sync: false  # You'll set this manually in dashboard
       - key: SUPABASE_KEY
-        fromService:
-          type: web
-          name: taletrail-api
-          envVarKey: SUPABASE_KEY
+        sync: false  # You'll set this manually in dashboard
+      - key: ALLOWED_ORIGINS
+        value: "*"   # Change this to your actual frontend URLs
+    buildCommand: ""
+    startCommand: ""
+    healthCheckPath: /health

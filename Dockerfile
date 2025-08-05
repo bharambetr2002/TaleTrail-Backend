@@ -2,10 +2,6 @@
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 
-# Render uses PORT environment variable
-EXPOSE $PORT
-ENV ASPNETCORE_URLS=http://*:$PORT
-
 # Use the .NET 8 SDK for building
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
@@ -38,8 +34,10 @@ USER appuser
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV RENDER=true
 
-# Health check (adjust port to use PORT env var)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+# Render will provide the PORT environment variable
+EXPOSE $PORT
+
+# Use HTTP only (Render handles HTTPS termination)
+ENV ASPNETCORE_URLS=http://*:$PORT
 
 ENTRYPOINT ["dotnet", "TaleTrail.API.dll"]
