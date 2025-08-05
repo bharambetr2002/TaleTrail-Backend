@@ -6,46 +6,37 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅ Configure Supabase from environment variables or appsettings
+// 🛠 Supabase Setup
 var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL")
     ?? builder.Configuration["Supabase:Url"];
 var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY")
     ?? builder.Configuration["Supabase:Key"];
 
-if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
-{
+if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(supabaseKey))
     throw new InvalidOperationException("Supabase URL and Key must be configured");
-}
 
-// ✅ Add Supabase config to builder configuration
 builder.Configuration["Supabase:Url"] = supabaseUrl;
 builder.Configuration["Supabase:Key"] = supabaseKey;
 
-// ✅ Configure logging
+// 🛠 Logging
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.Logging.AddDebug();
 
-// ✅ Register services
+// 🛠 Services
 builder.Services.AddSingleton<SupabaseService>();
-
-// Register business services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<BookService>();
 builder.Services.AddScoped<BlogService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<WatchlistService>();
 
-// ✅ Add health checks
-builder.Services.AddHealthChecks()
-    .AddCheck("supabase", () =>
-    {
-        return !string.IsNullOrEmpty(supabaseUrl) ?
-            Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy() :
-            Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy();
-    });
+// 🛠 Health Checks
+builder.Services.AddHealthChecks().AddCheck("supabase", () =>
+    !string.IsNullOrEmpty(supabaseUrl)
+        ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy()
+        : Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy());
 
-// ✅ Add rate limiting
+// 🛠 Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("ApiPolicy", opt =>
@@ -57,10 +48,10 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// ✅ Configure CORS for production
+// 🛠 CORS
 var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?
     .Split(',', StringSplitOptions.RemoveEmptyEntries)
-    ?? new[] { "http://localhost:3000", "https://localhost:3001" };
+    ?? new[] { "http://localhost:3000" };
 
 builder.Services.AddCors(options =>
 {
@@ -72,37 +63,26 @@ builder.Services.AddCors(options =>
               .AllowCredentials();
     });
 
-    // Keep AllowAll for development
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
     });
 });
 
+// 🛠 Controllers + Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-// ✅ Configure Swagger for different environments
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "TaleTrail API",
-        Version = "v1.0.0",
-        Description = "A comprehensive API for book tracking and reviews",
-        Contact = new OpenApiContact
-        {
-            Name = "TaleTrail Support",
-            Email = "support@taletrail.com"
-        }
+        Version = "v1.0.0"
     });
 
-    // Add JWT Authentication to Swagger
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
+        Description = "JWT Bearer token format: Bearer {token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -128,9 +108,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// ✅ Configure HTTP pipeline
-
-// Add security headers
+// 🧱 Secure headers
 app.Use(async (context, next) =>
 {
     context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
@@ -139,83 +117,62 @@ app.Use(async (context, next) =>
     context.Response.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
 
     if (!app.Environment.IsDevelopment())
-    {
         context.Response.Headers.Add("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    }
 
     await next();
 });
 
-// Add error handling middleware first
+// 🧱 Middleware
 app.UseMiddleware<ErrorHandlerMiddleware>();
 
-// ✅ Configure Swagger based on environment
-if (app.Environment.IsDevelopment())
+// 🧱 Swagger
+var enableSwagger = app.Environment.IsDevelopment() ||
+                    Environment.GetEnvironmentVariable("ENABLE_SWAGGER") == "true";
+
+if (enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API V1");
-        c.RoutePrefix = "swagger";
+        c.RoutePrefix = app.Environment.IsDevelopment() ? "swagger" : "docs";
     });
 }
-else
-{
-    // In production, only enable Swagger if explicitly configured
-    var enableSwagger = Environment.GetEnvironmentVariable("ENABLE_SWAGGER") == "true";
-    if (enableSwagger)
-    {
-        app.UseSwagger();
-        app.UseSwaggerUI(c =>
-        {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API V1");
-            c.RoutePrefix = "docs"; // Change route for production
-        });
-    }
 
-    app.UseHsts();
-}
-
+// 🧱 Optional HTTPS redirection
 if (!app.Environment.IsDevelopment())
 {
-    app.UseHttpsRedirection();
+    // Commented because Render or cloud handles HTTPS already
+    // app.UseHttpsRedirection();
 }
 
-app.UseStaticFiles();
-
-// ✅ Enable CORS based on environment
-var corsPolicy = app.Environment.IsDevelopment() ? "AllowAll" : "ProductionCors";
-app.UseCors(corsPolicy);
-
-// ✅ Add rate limiting
+// 🧱 CORS + Routing
+app.UseCors(app.Environment.IsDevelopment() ? "AllowAll" : "ProductionCors");
 app.UseRateLimiter();
-
 app.UseRouting();
 
-// Add auth middleware (commented out until JWT implementation is complete)
+// 🧱 (Auth Middleware later)
 // app.UseMiddleware<SupabaseAuthMiddleware>();
 
 app.UseAuthorization();
 
-// ✅ Map health checks
+// ✅ Health Endpoints
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 app.MapHealthChecks("/health/live");
 
-// ✅ Apply rate limiting to API routes
+// ✅ Controllers
 app.MapControllers().RequireRateLimiting("ApiPolicy");
 
-// ✅ Root endpoint
+// ✅ Root + Version
 app.MapGet("/", () => Results.Ok(new
 {
     service = "TaleTrail API",
     version = "1.0.0",
     environment = app.Environment.EnvironmentName,
-    timestamp = DateTime.UtcNow,
-    status = "healthy"
+    timestamp = DateTime.UtcNow
 }));
 
-// ✅ Version endpoint
 app.MapGet("/version", () => Results.Ok(new
 {
     version = "1.0.0",
@@ -223,18 +180,10 @@ app.MapGet("/version", () => Results.Ok(new
     environment = app.Environment.EnvironmentName
 }));
 
-// ✅ Startup logging
+// ✅ Startup log
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("🚀 TaleTrail API starting up...");
 logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 logger.LogInformation("Supabase URL: {SupabaseUrl}", supabaseUrl);
-
-if (app.Environment.IsDevelopment())
-{
-    logger.LogInformation("📖 Swagger UI: /swagger");
-}
-
-logger.LogInformation("🏥 Health checks: /health, /health/ready, /health/live");
-logger.LogInformation("🌐 API Base URL: {BaseUrl}", app.Urls.FirstOrDefault() ?? "Not configured");
 
 app.Run();

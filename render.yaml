@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: taletrail-api
+    env: docker
+    repo: https://github.com/yourusername/taletrail.git
+    branch: main
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ENABLE_SWAGGER
+        value: true
+      - key: SUPABASE_URL
+        fromService:
+          type: web
+          name: taletrail-api
+          envVarKey: SUPABASE_URL
+      - key: SUPABASE_KEY
+        fromService:
+          type: web
+          name: taletrail-api
+          envVarKey: SUPABASE_KEY
