@@ -3,10 +3,10 @@ using TaleTrail.API.Middleware;
 using TaleTrail.API.DAO;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.RateLimiting;
-using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
 
 // Load environment variables FIRST
 DotNetEnv.Env.Load();
@@ -17,9 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 var supabaseJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET")
     ?? throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing from your .env file.");
 
-// --- Service Registration ---
-
-// Add .NET Core Authentication with proper Supabase claim mapping
+// --- Auth & JWT ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -31,19 +29,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = false,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero,
-            // Map Supabase claims to .NET claims
-            NameClaimType = "sub", // Maps 'sub' claim to NameIdentifier
-            RoleClaimType = "role" // Maps 'role' claim to Role
+            NameClaimType = "sub",
+            RoleClaimType = "role"
         };
     });
 
 builder.Services.AddAuthorization();
 
-// Register Core Services
+// --- Core Services ---
 builder.Services.AddSingleton<SupabaseService>();
 builder.Services.AddSingleton<JwtService>();
 
-// Register all DAOs
+// --- DAOs ---
 builder.Services.AddScoped<AuthorDao>();
 builder.Services.AddScoped<BlogDao>();
 builder.Services.AddScoped<BlogLikeDao>();
@@ -54,7 +51,7 @@ builder.Services.AddScoped<ReviewDao>();
 builder.Services.AddScoped<UserDao>();
 builder.Services.AddScoped<UserBookDao>();
 
-// Register all Business Services
+// --- Business Services ---
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AuthorService>();
 builder.Services.AddScoped<BlogLikeService>();
@@ -65,10 +62,11 @@ builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<UserBookService>();
 builder.Services.AddScoped<UserService>();
 
-// Add health check
+// --- Misc ---
 builder.Services.AddHealthChecks();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
 
-// Rate limiting
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("ApiPolicy", opt =>
@@ -80,26 +78,23 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// CORS policy
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AppCors", policy =>
     {
-        policy.AllowAnyOrigin() // Allows requests from any origin
+        policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
     opt.SwaggerDoc("v1", new OpenApiInfo { Title = "TaleTrail API", Version = "v1" });
     opt.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
-        Description = "Please enter token",
+        Description = "Enter your JWT token",
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
         BearerFormat = "JWT",
@@ -112,18 +107,18 @@ builder.Services.AddSwaggerGen(opt =>
             {
                 Reference = new OpenApiReference
                 {
-                    Type=ReferenceType.SecurityScheme,
-                    Id="Bearer"
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
                 }
             },
-            new string[]{}
+            new string[] {}
         }
     });
 });
 
 var app = builder.Build();
 
-// --- Middleware Pipeline (ORDER MATTERS!) ---
+// --- Middleware Pipeline (ORDER MATTERS) ---
 app.UseMiddleware<ErrorHandlerMiddleware>();
 app.UseCors("AppCors");
 app.UseRateLimiter();
@@ -134,19 +129,17 @@ if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABL
     app.UseSwaggerUI();
 }
 
+// ✅ Only redirect HTTPS locally — not in container
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-
-// CRITICAL: Use built-in Authentication and Authorization middleware (removed custom middleware)
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapControllers().RequireRateLimiting("ApiPolicy");
-
 app.MapGet("/", () => "Welcome to TaleTrail API!");
 
 app.Run();
