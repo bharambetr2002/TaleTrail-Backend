@@ -1,81 +1,72 @@
+using TaleTrail.API.DAO;
 using TaleTrail.API.Models;
 using TaleTrail.API.DTOs;
 using TaleTrail.API.Exceptions;
-using TaleTrail.API.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class AuthorService
     {
-        private readonly SupabaseService _supabase;
+        private readonly AuthorDao _authorDao;
         private readonly ILogger<AuthorService> _logger;
 
-        public AuthorService(SupabaseService supabase, ILogger<AuthorService> logger)
+        public AuthorService(AuthorDao authorDao, ILogger<AuthorService> logger)
         {
-            _supabase = supabase;
+            _authorDao = authorDao;
             _logger = logger;
         }
 
-        public async Task<List<Author>> GetAllAuthorsAsync()
+        public async Task<List<Author>> GetAllAuthorsAsync(string? searchTerm = null)
         {
-            try
-            {
-                var response = await _supabase.Client.From<Author>()
-                    .Order("name", Supabase.Postgrest.Constants.Ordering.Ascending)
-                    .Get();
-
-                return response.Models ?? new List<Author>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get all authors");
-                throw new AppException($"Failed to get authors: {ex.Message}", ex);
-            }
+            return await _authorDao.GetAllAsync(searchTerm);
         }
 
         public async Task<Author?> GetAuthorByIdAsync(Guid id)
         {
-            try
-            {
-                var response = await _supabase.Client.From<Author>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                    .Get();
-
-                return response.Models?.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get author {AuthorId}", id);
-                throw new AppException($"Failed to get author: {ex.Message}", ex);
-            }
+            return await _authorDao.GetByIdAsync(id);
         }
 
-        public async Task<Author> CreateAuthorAsync(AuthorDto authorDto)
+        public async Task<Author> AddAuthorAsync(AuthorDto authorDto)
         {
-            ValidationHelper.ValidateModel(authorDto);
-
             var author = new Author
             {
-                Id = Guid.NewGuid(),
                 Name = authorDto.Name
             };
 
-            try
+            var createdAuthor = await _authorDao.AddAsync(author);
+            if (createdAuthor == null)
             {
-                var response = await _supabase.Client.From<Author>().Insert(author);
-                var createdAuthor = response.Models?.FirstOrDefault();
-
-                if (createdAuthor == null)
-                    throw new AppException("Failed to create author - no data returned");
-
-                _logger.LogInformation("Author created successfully with ID {AuthorId}", createdAuthor.Id);
-                return createdAuthor;
+                throw new AppException("Failed to create author.");
             }
-            catch (Exception ex)
+            return createdAuthor;
+        }
+
+        public async Task<Author?> UpdateAuthorAsync(Guid id, AuthorDto authorDto)
+        {
+            var existingAuthor = await _authorDao.GetByIdAsync(id);
+            if (existingAuthor == null)
             {
-                _logger.LogError(ex, "Failed to create author with name {Name}", authorDto.Name);
-                throw;
+                return null; // Not found
             }
+
+            existingAuthor.Name = authorDto.Name;
+            return await _authorDao.UpdateAsync(existingAuthor);
+        }
+
+        public async Task<bool> DeleteAuthorAsync(Guid id)
+        {
+            var existingAuthor = await _authorDao.GetByIdAsync(id);
+            if (existingAuthor == null)
+            {
+                return false; // Not found
+            }
+
+            await _authorDao.DeleteAsync(id);
+            return true;
         }
     }
 }

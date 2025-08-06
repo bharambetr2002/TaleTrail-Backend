@@ -1,155 +1,110 @@
+using TaleTrail.API.DAO;
 using TaleTrail.API.Models;
 using TaleTrail.API.DTOs;
+using TaleTrail.API.DTOs.Profile;
 using TaleTrail.API.Exceptions;
-using TaleTrail.API.Helpers;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class UserService
     {
-        private readonly SupabaseService _supabase;
+        private readonly UserDao _userDao;
+        private readonly UserBookDao _userBookDao;
+        private readonly ReviewDao _reviewDao;
+        private readonly BlogDao _blogDao;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(SupabaseService supabase, ILogger<UserService> logger)
+        public UserService(UserDao userDao, UserBookDao userBookDao, ReviewDao reviewDao, BlogDao blogDao, ILogger<UserService> logger)
         {
-            _supabase = supabase;
+            _userDao = userDao;
+            _userBookDao = userBookDao;
+            _reviewDao = reviewDao;
+            _blogDao = blogDao;
             _logger = logger;
-        }
-
-        public async Task<List<User>> GetAllUsersAsync()
-        {
-            try
-            {
-                var response = await _supabase.Client.From<User>()
-                    .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-                    .Get();
-
-                return response.Models ?? new List<User>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get all users");
-                throw new AppException($"Failed to get users: {ex.Message}", ex);
-            }
         }
 
         public async Task<User?> GetUserByIdAsync(Guid id)
         {
-            try
-            {
-                var response = await _supabase.Client.From<User>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                    .Get();
-
-                return response.Models?.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get user {UserId}", id);
-                throw new AppException($"Failed to get user: {ex.Message}", ex);
-            }
+            return await _userDao.GetByIdAsync(id);
         }
 
-        public async Task<User?> GetUserByEmailAsync(string email)
+        public async Task<User?> UpdateUserAsync(Guid userId, UserDto userDto)
         {
-            try
-            {
-                var response = await _supabase.Client.From<User>()
-                    .Filter("email", Supabase.Postgrest.Constants.Operator.Equals, email)
-                    .Get();
-
-                return response.Models?.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get user by email {Email}", email);
-                throw new AppException($"Failed to get user by email: {ex.Message}", ex);
-            }
-        }
-
-        public async Task<User> UpdateUserProfileAsync(Guid userId, UserDto userDto)
-        {
-            ValidationHelper.ValidateModel(userDto);
-
-            var existingUser = await GetUserByIdAsync(userId);
+            var existingUser = await _userDao.GetByIdAsync(userId);
             if (existingUser == null)
-                throw new NotFoundException($"User with ID {userId} not found");
+            {
+                return null; // Not found
+            }
 
             existingUser.FullName = userDto.FullName;
             existingUser.Bio = userDto.Bio;
             existingUser.AvatarUrl = userDto.AvatarUrl;
+            existingUser.Location = userDto.Location;
 
-            try
-            {
-                var response = await _supabase.Client.From<User>().Update(existingUser);
-                var updatedUser = response.Models?.FirstOrDefault();
-
-                if (updatedUser == null)
-                    throw new AppException("Failed to update user profile");
-
-                _logger.LogInformation("User profile {UserId} updated successfully", userId);
-                return updatedUser;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to update user profile {UserId}", userId);
-                throw;
-            }
+            return await _userDao.UpdateAsync(existingUser);
         }
 
-        public async Task DeleteUserAsync(Guid userId)
+        public async Task<bool> DeleteUserAsync(Guid userId)
         {
-            var user = await GetUserByIdAsync(userId);
+            var existingUser = await _userDao.GetByIdAsync(userId);
+            if (existingUser == null)
+            {
+                return false; // Not found
+            }
+
+            // Important: You would also need logic here to delete the user from Supabase Auth.
+            // This requires using the Supabase Admin client, which is a more advanced setup.
+            await _userDao.DeleteAsync(userId);
+            return true;
+        }
+
+        public async Task<PublicProfileDto?> GetPublicProfileByUsernameAsync(string username)
+        {
+            var user = await _userDao.GetByUsernameAsync(username);
             if (user == null)
-                throw new NotFoundException($"User with ID {userId} not found");
+            {
+                return null; // User not found
+            }
 
-            try
-            {
-                await _supabase.Client.From<User>().Delete(user);
-                _logger.LogInformation("User {UserId} deleted successfully", userId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to delete user {UserId}", userId);
-                throw new AppException($"Failed to delete user: {ex.Message}", ex);
-            }
-        }
+            // Fetch all necessary data in parallel
+            var userBooksTask = _userBookDao.GetByUserIdAsync(user.Id);
+            var userReviewsTask = _reviewDao.GetByUserIdAsync(user.Id);
+            var userBlogsTask = _blogDao.GetAllAsync(user.Id);
 
-        // Admin-only methods
-        public async Task<List<User>> SearchUsersAsync(string searchTerm)
-        {
-            try
-            {
-                var response = await _supabase.Client.From<User>()
-                    .Filter("full_name", Supabase.Postgrest.Constants.Operator.ILike, $"%{searchTerm}%")
-                    .Or(new List<Supabase.Postgrest.Interfaces.IPostgrestQueryFilter>
-                    {
-                        new Supabase.Postgrest.QueryFilter("email", Supabase.Postgrest.Constants.Operator.ILike, $"%{searchTerm}%")
-                    })
-                    .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-                    .Get();
+            await Task.WhenAll(userBooksTask, userReviewsTask, userBlogsTask);
 
-                return response.Models ?? new List<User>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to search users with term: {SearchTerm}", searchTerm);
-                throw new AppException($"Failed to search users: {ex.Message}", ex);
-            }
-        }
+            var userBooks = await userBooksTask;
+            var userReviews = await userReviewsTask;
+            var userBlogs = await userBlogsTask;
 
-        public async Task<int> GetTotalUsersCountAsync()
-        {
-            try
+            // Calculate stats
+            var stats = new UserStatsDto
             {
-                var response = await _supabase.Client.From<User>().Get();
-                return response.Models?.Count ?? 0;
-            }
-            catch (Exception ex)
+                BooksCompleted = userBooks.Count(ub => ub.Status == "completed"),
+                CurrentlyReading = userBooks.Count(ub => ub.Status == "in_progress"),
+                WishlistCount = userBooks.Count(ub => ub.Status == "wanna_read"),
+                AverageRating = userReviews.Any() ? Math.Round(userReviews.Average(r => r.Rating), 2) : 0,
+                BlogsWritten = userBlogs.Count
+            };
+
+            // Shape the response DTO
+            var profileDto = new PublicProfileDto
             {
-                _logger.LogError(ex, "Failed to get total users count");
-                throw new AppException($"Failed to get users count: {ex.Message}", ex);
-            }
+                Username = user.Username,
+                FullName = user.FullName,
+                Bio = user.Bio,
+                AvatarUrl = user.AvatarUrl,
+                Location = user.Location,
+                JoinedAt = user.CreatedAt,
+                Stats = stats,
+                // For simplicity, we're not including the book list here, but you could add it.
+            };
+
+            return profileDto;
         }
     }
 }

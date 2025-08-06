@@ -1,48 +1,72 @@
 using TaleTrail.API.Services;
 using TaleTrail.API.Middleware;
+using TaleTrail.API.DAO;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load environment variables from .env file
 DotNetEnv.Env.Load();
 
-// ✅ Load required environment variables
-var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
-var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY");
-var supabaseJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
+// --- Configuration ---
+var supabaseJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET")
+    ?? throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing from your .env file.");
 
-if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
-    throw new InvalidOperationException("Supabase credentials are missing");
+// --- Service Registration ---
 
-if (string.IsNullOrEmpty(supabaseJwtSecret))
-    throw new InvalidOperationException("SUPABASE_JWT_SECRET environment variable is missing. Get it from Supabase Dashboard > Settings > API");
+// Add .NET Core Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(supabaseJwtSecret)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
-// ✅ Register core services
+builder.Services.AddAuthorization();
+
+// Register Core Services
 builder.Services.AddSingleton<SupabaseService>();
 builder.Services.AddSingleton<JwtService>();
 
-// ✅ Register all business services
+// Register all DAOs
+builder.Services.AddScoped<AuthorDao>();
+builder.Services.AddScoped<BlogDao>();
+builder.Services.AddScoped<BlogLikeDao>();
+builder.Services.AddScoped<BookDao>();
+builder.Services.AddScoped<BookAuthorDao>();
+builder.Services.AddScoped<PublisherDao>();
+builder.Services.AddScoped<ReviewDao>();
+builder.Services.AddScoped<UserDao>();
+builder.Services.AddScoped<UserBookDao>();
+
+// Register all Business Services
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<BookService>();
-builder.Services.AddScoped<BlogService>();
-builder.Services.AddScoped<ReviewService>();
-builder.Services.AddScoped<WatchlistService>();
-builder.Services.AddScoped<FeedbackService>();
-builder.Services.AddScoped<SubscriptionService>();
-builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AuthorService>();
-builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<BlogLikeService>();
+builder.Services.AddScoped<BlogService>();
+builder.Services.AddScoped<BookService>();
 builder.Services.AddScoped<PublisherService>();
+builder.Services.AddScoped<ReviewService>();
+builder.Services.AddScoped<UserBookService>();
+builder.Services.AddScoped<UserService>();
 
-// ✅ Add health check for Supabase
-builder.Services.AddHealthChecks().AddCheck("supabase", () =>
-    !string.IsNullOrEmpty(supabaseUrl)
-        ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy()
-        : Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy());
 
-// ✅ Rate limiting
+// Add health check
+builder.Services.AddHealthChecks();
+
+// Rate limiting
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("ApiPolicy", opt =>
@@ -54,19 +78,14 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// ✅ CORS policy
-var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?
-    .Split(',', StringSplitOptions.RemoveEmptyEntries)
-    ?? new[] { "http://localhost:3000" };
-
+// CORS policy
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AppCors", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
+        policy.AllowAnyOrigin() // Allows requests from any origin
               .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowAnyMethod();
     });
 });
 
@@ -74,27 +93,16 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
-    opt.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "TaleTrail API",
-        Version = "v1",
-        Description = "Backend API for book tracking with JWT Authentication",
-        Contact = new OpenApiContact
-        {
-            Name = "TaleTrail",
-            Email = "support@taletrail.com"
-        }
-    });
-
+    opt.SwaggerDoc("v1", new OpenApiInfo { Title = "TaleTrail API", Version = "v1" });
     opt.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
-        Name = "Authorization",
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
+        Description = "Please enter token",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "bearer"
     });
-
     opt.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -102,60 +110,37 @@ builder.Services.AddSwaggerGen(opt =>
             {
                 Reference = new OpenApiReference
                 {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+                    Type=ReferenceType.SecurityScheme,
+                    Id="Bearer"
                 }
             },
-            Array.Empty<string>()
+            new string[]{}
         }
     });
 });
 
-// ✅ Configure Kestrel for deployment
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-builder.WebHost.ConfigureKestrel(serverOptions =>
-{
-    serverOptions.ListenAnyIP(int.Parse(port));
-});
-
 var app = builder.Build();
 
-// ✅ Middleware pipeline (ORDER MATTERS!)
+// --- Middleware Pipeline (ORDER MATTERS!) ---
 app.UseMiddleware<ErrorHandlerMiddleware>();
 app.UseCors("AppCors");
 app.UseRateLimiter();
 
-// ✅ Enable Swagger
 if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABLE_SWAGGER") == "true")
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API v1");
-        c.RoutePrefix = "swagger";
-    });
+    app.UseSwaggerUI();
 }
 
-app.UseStaticFiles();
-app.UseRouting();
+app.UseHttpsRedirection();
 
-// ✅ CRITICAL: Enable JWT Authentication Middleware
-app.UseMiddleware<SupabaseAuthMiddleware>();
-
+// CRITICAL: Add Authentication and Authorization middleware
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapControllers().RequireRateLimiting("ApiPolicy");
 
-app.MapGet("/", () => Results.Ok(new
-{
-    service = "TaleTrail API",
-    version = "1.0.0",
-    status = "healthy",
-    environment = app.Environment.EnvironmentName,
-    time = DateTime.UtcNow,
-    port = port,
-    authentication = "JWT-Enabled"
-}));
+app.MapGet("/", () => "Welcome to TaleTrail API!");
 
 app.Run();

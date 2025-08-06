@@ -1,38 +1,34 @@
 using Microsoft.AspNetCore.Mvc;
-using TaleTrail.API.Models;
-using TaleTrail.API.DTOs;
+using Microsoft.AspNetCore.Authorization; // Add this for authorization
 using TaleTrail.API.Services;
+using TaleTrail.API.DTOs;
 using TaleTrail.API.Helpers;
+using System;
+using System.Threading.Tasks;
 
 namespace TaleTrail.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class PublisherController : ControllerBase
+    public class PublisherController : BaseController
     {
-        private readonly SupabaseService _supabase;
+        private readonly PublisherService _publisherService;
         private readonly ILogger<PublisherController> _logger;
 
-        public PublisherController(SupabaseService supabase, ILogger<PublisherController> logger)
+        public PublisherController(PublisherService publisherService, ILogger<PublisherController> logger)
         {
-            _supabase = supabase;
+            _publisherService = publisherService;
             _logger = logger;
         }
 
-        // GET: api/publisher
+        // GET: api/publisher - This is public
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAllPublishers()
         {
             try
             {
-                var response = await _supabase.Client.From<Publisher>().Get();
-                var publishers = response.Models?.Select(p => new
-                {
-                    p.Id,
-                    p.Name
-                }).ToList();
-
-                return Ok(ApiResponse<object>.SuccessResult(publishers, $"Found {publishers?.Count ?? 0} publishers"));
+                var publishers = await _publisherService.GetAllPublishersAsync();
+                return Ok(ApiResponse<object>.SuccessResult(publishers));
             }
             catch (Exception ex)
             {
@@ -41,23 +37,17 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // GET: api/publisher/{id}
+        // GET: api/publisher/{id} - This is public
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public async Task<IActionResult> GetPublisherById(Guid id)
         {
             try
             {
-                var response = await _supabase.Client
-                    .From<Publisher>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                    .Get();
-
-                var publisher = response.Models?.FirstOrDefault();
+                var publisher = await _publisherService.GetPublisherByIdAsync(id);
                 if (publisher == null)
                     return NotFound(ApiResponse.ErrorResult("Publisher not found"));
 
-                var result = new { publisher.Id, publisher.Name };
-                return Ok(ApiResponse<object>.SuccessResult(result));
+                return Ok(ApiResponse<object>.SuccessResult(publisher));
             }
             catch (Exception ex)
             {
@@ -66,29 +56,15 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // POST: api/publisher
+        // POST: api/publisher - ADMIN ONLY
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] PublisherDto publisherDto)
+        [Authorize(Roles = "admin")] // IMPORTANT: Secures the endpoint
+        public async Task<IActionResult> CreatePublisher([FromBody] PublisherDto publisherDto)
         {
             try
             {
-                if (!ModelState.IsValid)
-                    return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
-
-                var publisher = new Publisher
-                {
-                    Id = Guid.NewGuid(),
-                    Name = publisherDto.Name
-                };
-
-                var response = await _supabase.Client.From<Publisher>().Insert(publisher);
-                var created = response.Models?.FirstOrDefault();
-
-                if (created == null)
-                    return BadRequest(ApiResponse.ErrorResult("Failed to create publisher"));
-
-                var result = new { created.Id, created.Name };
-                return Ok(ApiResponse<object>.SuccessResult(result, "Publisher created successfully"));
+                var newPublisher = await _publisherService.CreatePublisherAsync(publisherDto);
+                return CreatedAtAction(nameof(GetPublisherById), new { id = newPublisher.Id }, ApiResponse<object>.SuccessResult(newPublisher, "Publisher created successfully"));
             }
             catch (Exception ex)
             {
@@ -97,29 +73,18 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // PUT: api/publisher/{id}
+        // PUT: api/publisher/{id} - ADMIN ONLY
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] PublisherDto publisherDto)
+        [Authorize(Roles = "admin")] // IMPORTANT: Secures the endpoint
+        public async Task<IActionResult> UpdatePublisher(Guid id, [FromBody] PublisherDto publisherDto)
         {
             try
             {
-                if (!ModelState.IsValid)
-                    return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
+                var updatedPublisher = await _publisherService.UpdatePublisherAsync(id, publisherDto);
+                if (updatedPublisher == null)
+                    return NotFound(ApiResponse.ErrorResult("Publisher not found"));
 
-                var updated = new Publisher
-                {
-                    Id = id,
-                    Name = publisherDto.Name
-                };
-
-                var response = await _supabase.Client.From<Publisher>().Update(updated);
-                var publisher = response.Models?.FirstOrDefault();
-
-                if (publisher == null)
-                    return NotFound(ApiResponse.ErrorResult("Publisher not found or update failed"));
-
-                var result = new { publisher.Id, publisher.Name };
-                return Ok(ApiResponse<object>.SuccessResult(result, "Publisher updated successfully"));
+                return Ok(ApiResponse<object>.SuccessResult(updatedPublisher, "Publisher updated successfully"));
             }
             catch (Exception ex)
             {
@@ -128,14 +93,16 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // DELETE: api/publisher/{id}
+        // DELETE: api/publisher/{id} - ADMIN ONLY
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
+        [Authorize(Roles = "admin")] // IMPORTANT: Secures the endpoint
+        public async Task<IActionResult> DeletePublisher(Guid id)
         {
             try
             {
-                var record = new Publisher { Id = id };
-                await _supabase.Client.From<Publisher>().Delete(record);
+                var success = await _publisherService.DeletePublisherAsync(id);
+                if (!success)
+                    return NotFound(ApiResponse.ErrorResult("Publisher not found"));
 
                 return Ok(ApiResponse.SuccessResult("Publisher deleted successfully"));
             }

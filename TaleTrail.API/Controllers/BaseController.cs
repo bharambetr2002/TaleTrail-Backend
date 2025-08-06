@@ -1,32 +1,42 @@
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Security.Claims; // Required for accessing claims
 
 namespace TaleTrail.API.Controllers
 {
     public abstract class BaseController : ControllerBase
     {
+        /// <summary>
+        /// Gets the authenticated user's ID from the JWT claims.
+        /// </summary>
+        /// <returns>The user's GUID.</returns>
+        /// <exception cref="UnauthorizedAccessException">Thrown if the user ID claim is not found.</exception>
         protected Guid GetCurrentUserId()
         {
-            if (HttpContext.Items["UserId"] is Guid userId)
+            // The User.FindFirst method is the standard .NET way to get claims from the validated JWT.
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out Guid userId))
             {
                 return userId;
             }
 
-            throw new UnauthorizedAccessException("User not authenticated or user ID not found in context");
+            throw new UnauthorizedAccessException("User not authenticated or User ID not found in token.");
         }
 
-        protected string? GetCurrentUserEmail()
+        /// <summary>
+        /// Gets the authenticated user's role from the JWT claims.
+        /// </summary>
+        /// <returns>The user's role string (e.g., "user" or "admin").</returns>
+        /// <exception cref="UnauthorizedAccessException">Thrown if the role claim is not found.</exception>
+        protected string GetCurrentUserRole()
         {
-            return HttpContext.Items["UserEmail"] as string;
-        }
+            var roleClaim = User.FindFirst(ClaimTypes.Role);
+            if (roleClaim != null && !string.IsNullOrEmpty(roleClaim.Value))
+            {
+                return roleClaim.Value;
+            }
 
-        protected string? GetCurrentUserToken()
-        {
-            return HttpContext.Items["AccessToken"] as string;
-        }
-
-        protected bool IsUserAuthenticated()
-        {
-            return HttpContext.Items.ContainsKey("UserId") && HttpContext.Items["UserId"] is Guid;
+            throw new UnauthorizedAccessException("Role not found in token.");
         }
     }
 }

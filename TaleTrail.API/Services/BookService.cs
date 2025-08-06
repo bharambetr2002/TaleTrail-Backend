@@ -1,148 +1,96 @@
+using TaleTrail.API.DAO;
 using TaleTrail.API.Models;
 using TaleTrail.API.DTOs;
 using TaleTrail.API.Exceptions;
-using TaleTrail.API.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class BookService
     {
-        private readonly SupabaseService _supabase;
+        private readonly BookDao _bookDao;
+        private readonly BookAuthorDao _bookAuthorDao; // Add this for linking authors
         private readonly ILogger<BookService> _logger;
 
-        public BookService(SupabaseService supabase, ILogger<BookService> logger)
+        public BookService(BookDao bookDao, BookAuthorDao bookAuthorDao, ILogger<BookService> logger)
         {
-            _supabase = supabase;
+            _bookDao = bookDao;
+            _bookAuthorDao = bookAuthorDao;
             _logger = logger;
         }
 
-        public async Task<List<BookResponseDto>> GetAllBooksAsync()
+        public async Task<List<Book>> GetAllBooksAsync(string? searchTerm = null)
         {
-            var response = await _supabase.Client.From<Book>()
-                .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-                .Get();
-
-            return response.Models?.ToDto() ?? new List<BookResponseDto>();
+            return await _bookDao.GetAllAsync(searchTerm);
         }
 
-        public async Task<List<BookResponseDto>> GetUserBooksAsync(Guid userId)
+        public async Task<Book?> GetBookByIdAsync(Guid id)
         {
-            var response = await _supabase.Client.From<Book>()
-                .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-                .Get();
-
-            return response.Models?.ToDto() ?? new List<BookResponseDto>();
+            return await _bookDao.GetByIdAsync(id);
         }
 
-        public async Task<BookResponseDto> GetBookByIdAsync(Guid id)
+        public async Task<Book> CreateBookAsync(BookDto bookDto)
         {
-            var response = await _supabase.Client.From<Book>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                .Get();
-
-            var book = response.Models?.FirstOrDefault();
-            if (book == null)
-                throw new NotFoundException($"Book with ID {id} not found");
-
-            return book.ToDto();
-        }
-
-        public async Task<BookResponseDto> CreateBookAsync(BookDto bookDto, Guid userId)
-        {
-            ValidationHelper.ValidateModel(bookDto);
-
             var book = new Book
             {
-                Id = Guid.NewGuid(),
                 Title = bookDto.Title,
                 Description = bookDto.Description,
                 CoverUrl = bookDto.CoverUrl,
-                Language = bookDto.Language,
                 PublicationYear = bookDto.PublicationYear,
-                UserId = userId, // From JWT token, not from client
+                PublisherId = bookDto.PublisherId,
                 CreatedAt = DateTime.UtcNow
             };
 
-            try
+            var createdBook = await _bookDao.AddAsync(book);
+            if (createdBook == null)
             {
-                var response = await _supabase.Client.From<Book>().Insert(book);
-                var createdBook = response.Models?.FirstOrDefault();
-
-                if (createdBook == null)
-                    throw new AppException("Failed to create book - no data returned");
-
-                _logger.LogInformation("Book created successfully with ID {BookId} for user {UserId}", createdBook.Id, userId);
-                return createdBook.ToDto();
+                throw new AppException("Failed to create book.");
             }
-            catch (Exception ex)
+
+            // After creating the book, link it to the authors
+            foreach (var authorId in bookDto.AuthorIds)
             {
-                _logger.LogError(ex, "Failed to create book for user {UserId}. Title: {Title}", userId, bookDto.Title);
-                throw;
+                var bookAuthorLink = new BookAuthor { BookId = createdBook.Id, AuthorId = authorId };
+                await _bookAuthorDao.AddAsync(bookAuthorLink);
             }
+
+            return createdBook;
         }
 
-        public async Task<BookResponseDto> UpdateBookAsync(Guid id, BookDto bookDto, Guid userId)
+        public async Task<Book?> UpdateBookAsync(Guid id, BookDto bookDto)
         {
-            ValidationHelper.ValidateModel(bookDto);
-
-            var existingBook = await GetBookByIdForUser(id, userId);
+            var existingBook = await _bookDao.GetByIdAsync(id);
+            if (existingBook == null)
+            {
+                return null; // Not found
+            }
 
             existingBook.Title = bookDto.Title;
             existingBook.Description = bookDto.Description;
             existingBook.CoverUrl = bookDto.CoverUrl;
-            existingBook.Language = bookDto.Language;
             existingBook.PublicationYear = bookDto.PublicationYear;
+            existingBook.PublisherId = bookDto.PublisherId;
 
-            try
-            {
-                var response = await _supabase.Client.From<Book>().Update(existingBook);
-                var updatedBook = response.Models?.FirstOrDefault();
+            // Note: Handling author link updates can be complex.
+            // For simplicity, this version doesn't change author links on update.
+            // A more advanced version would remove old links and add new ones.
 
-                if (updatedBook == null)
-                    throw new AppException("Failed to update book");
-
-                _logger.LogInformation("Book {BookId} updated successfully by user {UserId}", id, userId);
-                return updatedBook.ToDto();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to update book {BookId} for user {UserId}", id, userId);
-                throw;
-            }
+            return await _bookDao.UpdateAsync(existingBook);
         }
 
-        public async Task DeleteBookAsync(Guid id, Guid userId)
+        public async Task<bool> DeleteBookAsync(Guid id)
         {
-            var book = await GetBookByIdForUser(id, userId);
-
-            try
+            var existingBook = await _bookDao.GetByIdAsync(id);
+            if (existingBook == null)
             {
-                await _supabase.Client.From<Book>().Delete(book);
-                _logger.LogInformation("Book {BookId} deleted successfully by user {UserId}", id, userId);
+                return false; // Not found
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to delete book {BookId} for user {UserId}", id, userId);
-                throw new AppException($"Failed to delete book: {ex.Message}", ex);
-            }
-        }
 
-        private async Task<Book> GetBookByIdForUser(Guid id, Guid userId)
-        {
-            var response = await _supabase.Client.From<Book>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                .Get();
-
-            var book = response.Models?.FirstOrDefault();
-            if (book == null)
-                throw new NotFoundException($"Book with ID {id} not found");
-
-            // Authorization check: Only allow the owner to modify/delete
-            if (book.UserId != userId)
-                throw new UnauthorizedAccessException("You can only modify your own books");
-
-            return book;
+            await _bookDao.DeleteAsync(id);
+            return true;
         }
     }
 }

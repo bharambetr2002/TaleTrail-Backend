@@ -1,81 +1,72 @@
+using TaleTrail.API.DAO;
 using TaleTrail.API.Models;
 using TaleTrail.API.DTOs;
 using TaleTrail.API.Exceptions;
-using TaleTrail.API.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class PublisherService
     {
-        private readonly SupabaseService _supabase;
+        private readonly PublisherDao _publisherDao;
         private readonly ILogger<PublisherService> _logger;
 
-        public PublisherService(SupabaseService supabase, ILogger<PublisherService> logger)
+        public PublisherService(PublisherDao publisherDao, ILogger<PublisherService> logger)
         {
-            _supabase = supabase;
+            _publisherDao = publisherDao;
             _logger = logger;
         }
 
         public async Task<List<Publisher>> GetAllPublishersAsync()
         {
-            try
-            {
-                var response = await _supabase.Client.From<Publisher>()
-                    .Order("name", Supabase.Postgrest.Constants.Ordering.Ascending)
-                    .Get();
-
-                return response.Models ?? new List<Publisher>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get all publishers");
-                throw new AppException($"Failed to get publishers: {ex.Message}", ex);
-            }
+            return await _publisherDao.GetAllAsync();
         }
 
         public async Task<Publisher?> GetPublisherByIdAsync(Guid id)
         {
-            try
-            {
-                var response = await _supabase.Client.From<Publisher>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                    .Get();
-
-                return response.Models?.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get publisher {PublisherId}", id);
-                throw new AppException($"Failed to get publisher: {ex.Message}", ex);
-            }
+            return await _publisherDao.GetByIdAsync(id);
         }
 
         public async Task<Publisher> CreatePublisherAsync(PublisherDto publisherDto)
         {
-            ValidationHelper.ValidateModel(publisherDto);
-
             var publisher = new Publisher
             {
-                Id = Guid.NewGuid(),
                 Name = publisherDto.Name
             };
 
-            try
+            var createdPublisher = await _publisherDao.AddAsync(publisher);
+            if (createdPublisher == null)
             {
-                var response = await _supabase.Client.From<Publisher>().Insert(publisher);
-                var createdPublisher = response.Models?.FirstOrDefault();
-
-                if (createdPublisher == null)
-                    throw new AppException("Failed to create publisher - no data returned");
-
-                _logger.LogInformation("Publisher created successfully with ID {PublisherId}", createdPublisher.Id);
-                return createdPublisher;
+                throw new AppException("Failed to create publisher.");
             }
-            catch (Exception ex)
+            return createdPublisher;
+        }
+
+        public async Task<Publisher?> UpdatePublisherAsync(Guid id, PublisherDto publisherDto)
+        {
+            var existingPublisher = await _publisherDao.GetByIdAsync(id);
+            if (existingPublisher == null)
             {
-                _logger.LogError(ex, "Failed to create publisher with name {Name}", publisherDto.Name);
-                throw;
+                return null; // Not found
             }
+
+            existingPublisher.Name = publisherDto.Name;
+            return await _publisherDao.UpdateAsync(existingPublisher);
+        }
+
+        public async Task<bool> DeletePublisherAsync(Guid id)
+        {
+            var existingPublisher = await _publisherDao.GetByIdAsync(id);
+            if (existingPublisher == null)
+            {
+                return false; // Not found
+            }
+
+            await _publisherDao.DeleteAsync(id);
+            return true;
         }
     }
 }

@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Services;
-using TaleTrail.API.DTOs.Auth.Signup;
+// Corrected using statements
+using TaleTrail.API.DTOs.Auth;
 using TaleTrail.API.Helpers;
+using System.Threading.Tasks;
+using TaleTrail.API.DTOs.Auth.Signup;
 
 namespace TaleTrail.API.Controllers
 {
@@ -28,13 +31,6 @@ namespace TaleTrail.API.Controllers
         {
             var result = await _authService.LoginAsync(request);
             return Ok(ApiResponse<object>.SuccessResult(result, "Login successful"));
-        }
-
-        [HttpPost("logout")]
-        public async Task<IActionResult> Logout()
-        {
-            var success = await _authService.LogoutAsync();
-            return Ok(ApiResponse.SuccessResult(success ? "Logged out successfully" : "Logout failed"));
         }
     }
 }
