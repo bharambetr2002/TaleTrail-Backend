@@ -134,7 +134,11 @@ if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABL
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 
 // CRITICAL: Use built-in Authentication and Authorization middleware (removed custom middleware)
 app.UseAuthentication();
