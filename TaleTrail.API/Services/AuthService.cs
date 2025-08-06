@@ -5,6 +5,8 @@ using TaleTrail.API.Exceptions;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System;
+using System.Linq;
+using System.Collections.Generic;
 using UserModel = TaleTrail.API.Models.User;
 
 namespace TaleTrail.API.Services
@@ -24,13 +26,12 @@ namespace TaleTrail.API.Services
 
         public async Task<UserResponseDTO> SignupAsync(SignupDTO request)
         {
-            // Step 1: Create user in Supabase Auth
             Session? session;
             try
             {
                 session = await _supabaseClient.Auth.SignUp(request.Email, request.Password, new SignUpOptions
                 {
-                    Data = new System.Collections.Generic.Dictionary<string, object>
+                    Data = new Dictionary<string, object>
                     {
                         { "full_name", request.FullName },
                         { "username", request.Username }
@@ -38,28 +39,26 @@ namespace TaleTrail.API.Services
                 });
 
                 if (session?.User?.Id == null)
-                {
                     throw new AppException("Signup failed. User was not created by Supabase Auth.");
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Supabase Auth signup failed for email {Email}", request.Email);
-                // Check for common Supabase error messages
+
                 if (ex.Message.Contains("User already registered") || ex.Message.Contains("user_already_exists"))
-                {
                     throw new AppException("An account with this email already exists.");
-                }
+
                 throw new AppException($"An authentication error occurred: {ex.Message}");
             }
 
-            // Step 2: Create user profile in our public.users table
+            var uniqueUsername = await GenerateUniqueUsernameAsync(session.User); // ✅ Added this
+
             var userProfile = new UserModel
             {
-                Id = Guid.Parse(session.User.Id), // Safe to parse now - we checked for null above
+                Id = Guid.Parse(session.User.Id),
                 Email = request.Email,
                 FullName = request.FullName,
-                Username = request.Username,
+                Username = uniqueUsername, // ✅ Changed here
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -68,7 +67,6 @@ namespace TaleTrail.API.Services
                 var createdProfile = await _userDao.AddAsync(userProfile);
                 if (createdProfile == null)
                 {
-                    // This is a critical failure state. We should ideally delete the auth user here.
                     _logger.LogError("Failed to create user profile in database for auth user {UserId}", userProfile.Id);
                     throw new AppException("Your account was created, but we failed to save your profile. Please contact support.");
                 }
@@ -87,11 +85,9 @@ namespace TaleTrail.API.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to create user profile for {UserId}", userProfile.Id);
-                // Handle potential race condition or unique constraint violation
                 if (ex.Message.Contains("duplicate key") || ex.Message.Contains("23505"))
-                {
                     throw new AppException("A user with this username or email already exists.");
-                }
+
                 throw new AppException($"An error occurred while creating your profile: {ex.Message}");
             }
         }
@@ -105,16 +101,14 @@ namespace TaleTrail.API.Services
                 if (session?.User?.Id == null)
                     throw new AppException("Invalid email or password.");
 
-                var userId = Guid.Parse(session.User.Id); // Safe to parse - we checked for null
+                var userId = Guid.Parse(session.User.Id);
                 var user = await _userDao.GetByIdAsync(userId);
 
                 if (user == null)
                 {
-                    // Recovery mechanism: user exists in auth but not in our public table
                     _logger.LogWarning("User profile not found for authenticated user {UserId}, attempting to create profile", session.User.Id);
 
-                    // Generate a unique username based on email or use metadata
-                    var username = GenerateUniqueUsername(session.User);
+                    var username = await GenerateUniqueUsernameAsync(session.User);
 
                     user = new UserModel
                     {
@@ -142,17 +136,13 @@ namespace TaleTrail.API.Services
                     {
                         _logger.LogError(profileEx, "Failed to create user profile during login recovery for {UserId}", userId);
 
-                        // If profile creation fails due to duplicate username, try to find existing profile
                         if (profileEx.Message.Contains("duplicate key") || profileEx.Message.Contains("23505"))
                         {
-                            // Try to find the existing user by email
-                            var users = await _userDao.GetAllUsersAsync(); // You'll need to add this method
+                            var users = await _userDao.GetAllUsersAsync();
                             user = users.FirstOrDefault(u => u.Email.Equals(request.Email, StringComparison.OrdinalIgnoreCase));
 
                             if (user == null)
-                            {
                                 throw new AppException("Account setup incomplete. Please contact support.");
-                            }
                         }
                         else
                         {
@@ -170,11 +160,7 @@ namespace TaleTrail.API.Services
                     RefreshToken = session.RefreshToken ?? string.Empty
                 };
             }
-            catch (AppException)
-            {
-                // Re-throw our custom exceptions
-                throw;
-            }
+            catch (AppException) { throw; }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Login failed for email {Email}", request.Email);
@@ -182,42 +168,48 @@ namespace TaleTrail.API.Services
             }
         }
 
-        private string GenerateUniqueUsername(User user)
+        private async Task<string> GenerateUniqueUsernameAsync(User user)
         {
-            // Try to get username from metadata first
             if (user.UserMetadata != null && user.UserMetadata.ContainsKey("username"))
             {
                 var metadataUsername = user.UserMetadata["username"]?.ToString();
                 if (!string.IsNullOrEmpty(metadataUsername))
                 {
-                    return metadataUsername;
+                    var existingUser = await _userDao.GetByUsernameAsync(metadataUsername);
+                    if (existingUser == null)
+                        return metadataUsername;
                 }
             }
 
-            // Fallback: generate from email
-            if (!string.IsNullOrEmpty(user.Email))
+            string baseUsername = !string.IsNullOrEmpty(user.Email)
+                ? user.Email.Split('@')[0]
+                : "user";
+
+            var counter = 1;
+            var candidateUsername = baseUsername;
+
+            while (await _userDao.UsernameExistsAsync(candidateUsername))
             {
-                var emailPrefix = user.Email.Split('@')[0];
-                // Add timestamp suffix to ensure uniqueness
-                return $"{emailPrefix}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                candidateUsername = $"{baseUsername}_{counter}";
+                counter++;
+
+                if (counter > 1000)
+                {
+                    candidateUsername = $"user_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}_{Guid.NewGuid().ToString("N")[..8]}";
+                    break;
+                }
             }
 
-            // Final fallback
-            return $"user_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            return candidateUsername;
         }
 
         private string? GetFullNameFromUser(User user)
         {
             if (user.UserMetadata != null && user.UserMetadata.ContainsKey("full_name"))
-            {
                 return user.UserMetadata["full_name"]?.ToString();
-            }
 
-            // Fallback to email prefix if no full name
             if (!string.IsNullOrEmpty(user.Email))
-            {
                 return user.Email.Split('@')[0];
-            }
 
             return null;
         }

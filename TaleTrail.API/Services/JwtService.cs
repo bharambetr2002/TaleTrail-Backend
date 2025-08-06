@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Linq;
-using System.Text.Json; // Required for parsing user_metadata JSON
 
 namespace TaleTrail.API.Services
 {
@@ -24,85 +23,70 @@ namespace TaleTrail.API.Services
         }
 
         /// <summary>
-        /// Validates a JWT and extracts its claims, properly mapping Supabase claims to .NET standard claims.
+        /// Validates a Supabase JWT and extracts claims: sub, email, and role.
         /// </summary>
-        /// <param name="token">The JWT string.</param>
-        /// <returns>A list of claims from the token.</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the token is invalid or expired.</exception>
         public IEnumerable<Claim> GetClaimsFromToken(string token)
         {
             try
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
+                if (string.IsNullOrWhiteSpace(token))
+                    throw new UnauthorizedAccessException("Token is null or empty.");
 
-                // First, read the token to extract claims without validation
-                var jsonToken = tokenHandler.ReadJwtToken(token);
+                // Remove Bearer prefix if present
+                if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                    token = token.Substring(7);
 
+                var handler = new JwtSecurityTokenHandler();
+
+                if (!handler.CanReadToken(token))
+                {
+                    _logger.LogWarning("Token format is invalid: {Token}", token[..Math.Min(20, token.Length)] + "...");
+                    throw new UnauthorizedAccessException("Token format is invalid.");
+                }
+
+                // Read token (without verifying yet)
+                var jwt = handler.ReadJwtToken(token);
                 var claims = new List<Claim>();
 
-                // Map Supabase claims to .NET standard claims
-                if (jsonToken.Claims.FirstOrDefault(x => x.Type == "sub")?.Value is string userId)
-                {
+                // Extract sub (userId)
+                var userId = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+                if (!string.IsNullOrEmpty(userId))
                     claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
-                }
 
-                // Handle role - Supabase might store it differently
-                var roleClaim = jsonToken.Claims.FirstOrDefault(x => x.Type == "role")?.Value;
-                if (string.IsNullOrEmpty(roleClaim))
-                {
-                    // Try user_metadata for role
-                    var userMetadata = jsonToken.Claims.FirstOrDefault(x => x.Type == "user_metadata")?.Value;
-                    if (!string.IsNullOrEmpty(userMetadata))
-                    {
-                        try
-                        {
-                            var metadataDoc = JsonDocument.Parse(userMetadata);
-                            if (metadataDoc.RootElement.TryGetProperty("role", out var roleProperty))
-                            {
-                                roleClaim = roleProperty.GetString();
-                            }
-                        }
-                        catch
-                        {
-                            // Ignore JSON parsing errors
-                        }
-                    }
-
-                    // Default role if none found
-                    if (string.IsNullOrEmpty(roleClaim))
-                    {
-                        roleClaim = "user";
-                    }
-                }
-
-                claims.Add(new Claim(ClaimTypes.Role, roleClaim));
-
-                // Add email if present
-                if (jsonToken.Claims.FirstOrDefault(x => x.Type == "email")?.Value is string email)
-                {
+                // Extract email
+                var email = jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+                if (!string.IsNullOrEmpty(email))
                     claims.Add(new Claim(ClaimTypes.Email, email));
-                }
 
-                // Now validate the token signature and expiration
-                var validationParameters = new TokenValidationParameters
+                // Extract role (if missing, default to user)
+                var role = jwt.Claims.FirstOrDefault(c => c.Type == "role")?.Value ?? "user";
+                claims.Add(new Claim(ClaimTypes.Role, role));
+
+                // Signature + expiry validation
+                var validationParams = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_supabaseJwtSecret)),
-                    ValidateIssuer = false, // Supabase tokens do not have a standard issuer
-                    ValidateAudience = false, // Supabase tokens do not have a standard audience
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero
                 };
 
-                // This will throw an exception if the token is invalid or expired
-                tokenHandler.ValidateToken(token, validationParameters, out _);
+                // Validates signature + expiration (throws if fails)
+                handler.ValidateToken(token, validationParams, out _);
 
                 return claims;
             }
+            catch (SecurityTokenException ex)
+            {
+                _logger.LogWarning("Token validation failed: {Error}", ex.Message);
+                throw new UnauthorizedAccessException("Token validation failed.", ex);
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Token validation failed.");
-                throw new UnauthorizedAccessException("Invalid or expired token.", ex);
+                _logger.LogError(ex, "Unexpected error during token validation");
+                throw new UnauthorizedAccessException("Invalid Supabase token.", ex);
             }
         }
     }
