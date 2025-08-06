@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Linq;
+using System.Text.Json; // Required for parsing user_metadata JSON
 
 namespace TaleTrail.API.Services
 {
@@ -45,22 +46,41 @@ namespace TaleTrail.API.Services
                     claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
                 }
 
-                if (jsonToken.Claims.FirstOrDefault(x => x.Type == "role")?.Value is string role)
+                // Handle role - Supabase might store it differently
+                var roleClaim = jsonToken.Claims.FirstOrDefault(x => x.Type == "role")?.Value;
+                if (string.IsNullOrEmpty(roleClaim))
                 {
-                    claims.Add(new Claim(ClaimTypes.Role, role));
+                    // Try user_metadata for role
+                    var userMetadata = jsonToken.Claims.FirstOrDefault(x => x.Type == "user_metadata")?.Value;
+                    if (!string.IsNullOrEmpty(userMetadata))
+                    {
+                        try
+                        {
+                            var metadataDoc = JsonDocument.Parse(userMetadata);
+                            if (metadataDoc.RootElement.TryGetProperty("role", out var roleProperty))
+                            {
+                                roleClaim = roleProperty.GetString();
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore JSON parsing errors
+                        }
+                    }
+
+                    // Default role if none found
+                    if (string.IsNullOrEmpty(roleClaim))
+                    {
+                        roleClaim = "user";
+                    }
                 }
+
+                claims.Add(new Claim(ClaimTypes.Role, roleClaim));
 
                 // Add email if present
                 if (jsonToken.Claims.FirstOrDefault(x => x.Type == "email")?.Value is string email)
                 {
                     claims.Add(new Claim(ClaimTypes.Email, email));
-                }
-
-                // Add username if present in user_metadata
-                if (jsonToken.Claims.FirstOrDefault(x => x.Type == "user_metadata")?.Value is string userMetadata)
-                {
-                    // You might need to parse the JSON in user_metadata to extract username
-                    // For now, we'll skip this unless needed
                 }
 
                 // Now validate the token signature and expiration

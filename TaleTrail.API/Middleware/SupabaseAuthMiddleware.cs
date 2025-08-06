@@ -19,8 +19,10 @@ namespace TaleTrail.API.Middleware
         {
             var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
 
-            // If a token exists, validate it and create a user principal
-            if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+            // If a token exists and user isn't already authenticated, validate it and create a user principal
+            if (!string.IsNullOrEmpty(authHeader) &&
+                authHeader.StartsWith("Bearer ") &&
+                !context.User.Identity?.IsAuthenticated == true)
             {
                 var token = authHeader.Substring("Bearer ".Length).Trim();
                 try
@@ -29,7 +31,7 @@ namespace TaleTrail.API.Middleware
                     var claims = jwtService.GetClaimsFromToken(token);
 
                     // Create the identity and principal that .NET's [Authorize] attribute will use
-                    var identity = new ClaimsIdentity(claims, "jwt");
+                    var identity = new ClaimsIdentity(claims, "supabase-jwt");
                     context.User = new ClaimsPrincipal(identity);
                 }
                 catch
