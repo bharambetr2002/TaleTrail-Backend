@@ -19,21 +19,22 @@ if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
 if (string.IsNullOrEmpty(supabaseJwtSecret))
     throw new InvalidOperationException("SUPABASE_JWT_SECRET environment variable is missing. Get it from Supabase Dashboard > Settings > API");
 
-// ✅ Register services
+// ✅ Register core services
 builder.Services.AddSingleton<SupabaseService>();
 builder.Services.AddSingleton<JwtService>();
 
-// Core business services
+// ✅ Register all business services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<BookService>();
 builder.Services.AddScoped<BlogService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<WatchlistService>();
-
-// Additional services (newly added)
 builder.Services.AddScoped<FeedbackService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<AuthorService>();
+builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<PublisherService>();
 
 // ✅ Add health check for Supabase
 builder.Services.AddHealthChecks().AddCheck("supabase", () =>
