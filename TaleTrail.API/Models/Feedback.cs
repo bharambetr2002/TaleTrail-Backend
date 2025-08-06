@@ -13,7 +13,7 @@ public class Feedback : BaseModel
     public Guid? UserId { get; set; }
 
     [Column("message")]
-    public string Message { get; set; }
+    public string Message { get; set; } = string.Empty;
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }

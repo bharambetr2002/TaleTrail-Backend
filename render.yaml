@@ -9,11 +9,11 @@ services:
       - key: ENABLE_SWAGGER
         value: true
       - key: SUPABASE_URL
-        sync: false  # You'll set this manually in dashboard
+        sync: false # You'll set this manually in dashboard
       - key: SUPABASE_KEY
-        sync: false  # You'll set this manually in dashboard
+        sync: false # You'll set this manually in dashboard
       - key: ALLOWED_ORIGINS
-        value: "*"   # Change this to your actual frontend URLs
+        value: "*" # Change this to your actual frontend URLs
     buildCommand: ""
     startCommand: ""
     healthCheckPath: /health

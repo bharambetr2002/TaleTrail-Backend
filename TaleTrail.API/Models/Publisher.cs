@@ -10,5 +10,5 @@ public class Publisher : BaseModel
     public Guid Id { get; set; }
 
     [Column("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 }

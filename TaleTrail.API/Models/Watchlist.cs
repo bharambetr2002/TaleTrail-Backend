@@ -16,7 +16,7 @@ public class Watchlist : BaseModel
     public Guid BookId { get; set; }
 
     [Column("status")]
-    public string Status { get; set; }
+    public string Status { get; set; } = "to_read";
 
     [Column("added_at")]
     public DateTime AddedAt { get; set; }

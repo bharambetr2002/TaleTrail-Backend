@@ -13,7 +13,7 @@ public class Blog : BaseModel
     public Guid? UserId { get; set; }
 
     [Column("title")]
-    public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     [Column("content")]
     public string? Content { get; set; }

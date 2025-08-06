@@ -1,7 +1,7 @@
+// TaleTrail.API/Middleware/ErrorHandlerMiddleware.cs
 using System.Net;
 using System.Text.Json;
 using TaleTrail.API.Exceptions;
-using TaleTrail.API.Helpers;
 
 namespace TaleTrail.API.Middleware
 {
@@ -24,57 +24,37 @@ namespace TaleTrail.API.Middleware
             }
             catch (Exception error)
             {
-                _logger.LogError(error, "An unhandled exception occurred");
-
                 var response = context.Response;
                 response.ContentType = "application/json";
 
-                var apiResponse = error switch
+                var (statusCode, message) = error switch
                 {
-                    ValidationException ex => new ApiErrorResponse
-                    {
-                        Success = false,
-                        Message = ex.Message,
-                        Errors = ex.Errors,
-                        StatusCode = (int)HttpStatusCode.BadRequest
-                    },
-                    NotFoundException ex => new ApiErrorResponse
-                    {
-                        Success = false,
-                        Message = ex.Message,
-                        StatusCode = (int)HttpStatusCode.NotFound
-                    },
-                    AppException ex => new ApiErrorResponse
-                    {
-                        Success = false,
-                        Message = ex.Message,
-                        StatusCode = (int)HttpStatusCode.BadRequest
-                    },
-                    _ => new ApiErrorResponse
-                    {
-                        Success = false,
-                        Message = "An internal server error occurred",
-                        StatusCode = (int)HttpStatusCode.InternalServerError
-                    }
+                    ValidationException ex => (HttpStatusCode.BadRequest, ex.Message),
+                    NotFoundException ex => (HttpStatusCode.NotFound, ex.Message),
+                    AppException ex => (HttpStatusCode.BadRequest, ex.Message),
+                    Supabase.Gotrue.Exceptions.GotrueException ex => (HttpStatusCode.BadRequest, $"Authentication error: {ex.Message}"),
+                    Supabase.Postgrest.Exceptions.PostgrestException ex => (HttpStatusCode.InternalServerError, $"Database error: {ex.Message}"),
+                    _ => (HttpStatusCode.InternalServerError, "An internal server error occurred")
                 };
 
-                response.StatusCode = apiResponse.StatusCode;
+                // Log detailed error for debugging
+                _logger.LogError(error, "Error occurred: {StatusCode} - {Message}", statusCode, message);
 
-                var jsonResponse = JsonSerializer.Serialize(apiResponse, new JsonSerializerOptions
+                response.StatusCode = (int)statusCode;
+
+                var jsonResponse = JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    message = message,
+                    statusCode = (int)statusCode,
+                    timestamp = DateTime.UtcNow
+                }, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
                 await response.WriteAsync(jsonResponse);
             }
-        }
-
-        private class ApiErrorResponse
-        {
-            public bool Success { get; set; }
-            public string Message { get; set; }
-            public object Errors { get; set; }
-            public int StatusCode { get; set; }
         }
     }
 }

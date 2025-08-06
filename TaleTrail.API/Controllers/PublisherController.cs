@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Models;
+using TaleTrail.API.DTOs;
 using TaleTrail.API.Services;
-using System;
-using System.Threading.Tasks;
+using TaleTrail.API.Helpers;
 
 namespace TaleTrail.API.Controllers
 {
@@ -11,57 +11,139 @@ namespace TaleTrail.API.Controllers
     public class PublisherController : ControllerBase
     {
         private readonly SupabaseService _supabase;
+        private readonly ILogger<PublisherController> _logger;
 
-        public PublisherController(SupabaseService supabase)
+        public PublisherController(SupabaseService supabase, ILogger<PublisherController> logger)
         {
             _supabase = supabase;
+            _logger = logger;
         }
 
         // GET: api/publisher
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var response = await _supabase.Client.From<Publisher>().Get();
-            return Ok(response.Models);
+            try
+            {
+                var response = await _supabase.Client.From<Publisher>().Get();
+                var publishers = response.Models?.Select(p => new
+                {
+                    p.Id,
+                    p.Name
+                }).ToList();
+
+                return Ok(ApiResponse<object>.SuccessResult(publishers, $"Found {publishers?.Count ?? 0} publishers"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all publishers");
+                return BadRequest(ApiResponse.ErrorResult($"Error getting publishers: {ex.Message}"));
+            }
         }
 
         // GET: api/publisher/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(Guid id)
         {
-            var response = await _supabase.Client
-                .From<Publisher>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                .Get();
+            try
+            {
+                var response = await _supabase.Client
+                    .From<Publisher>()
+                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
+                    .Get();
 
-            return Ok(response.Models);
+                var publisher = response.Models?.FirstOrDefault();
+                if (publisher == null)
+                    return NotFound(ApiResponse.ErrorResult("Publisher not found"));
+
+                var result = new { publisher.Id, publisher.Name };
+                return Ok(ApiResponse<object>.SuccessResult(result));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting publisher {Id}", id);
+                return BadRequest(ApiResponse.ErrorResult($"Error getting publisher: {ex.Message}"));
+            }
         }
 
         // POST: api/publisher
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] Publisher publisher)
+        public async Task<IActionResult> Create([FromBody] PublisherDto publisherDto)
         {
-            publisher.Id = Guid.NewGuid();
-            var response = await _supabase.Client.From<Publisher>().Insert(publisher);
-            return Ok(response.Models);
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
+
+                var publisher = new Publisher
+                {
+                    Id = Guid.NewGuid(),
+                    Name = publisherDto.Name
+                };
+
+                var response = await _supabase.Client.From<Publisher>().Insert(publisher);
+                var created = response.Models?.FirstOrDefault();
+
+                if (created == null)
+                    return BadRequest(ApiResponse.ErrorResult("Failed to create publisher"));
+
+                var result = new { created.Id, created.Name };
+                return Ok(ApiResponse<object>.SuccessResult(result, "Publisher created successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating publisher");
+                return BadRequest(ApiResponse.ErrorResult($"Error creating publisher: {ex.Message}"));
+            }
         }
 
         // PUT: api/publisher/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] Publisher updated)
+        public async Task<IActionResult> Update(Guid id, [FromBody] PublisherDto publisherDto)
         {
-            updated.Id = id;
-            var response = await _supabase.Client.From<Publisher>().Update(updated);
-            return Ok(response.Models);
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
+
+                var updated = new Publisher
+                {
+                    Id = id,
+                    Name = publisherDto.Name
+                };
+
+                var response = await _supabase.Client.From<Publisher>().Update(updated);
+                var publisher = response.Models?.FirstOrDefault();
+
+                if (publisher == null)
+                    return NotFound(ApiResponse.ErrorResult("Publisher not found or update failed"));
+
+                var result = new { publisher.Id, publisher.Name };
+                return Ok(ApiResponse<object>.SuccessResult(result, "Publisher updated successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating publisher {Id}", id);
+                return BadRequest(ApiResponse.ErrorResult($"Error updating publisher: {ex.Message}"));
+            }
         }
 
         // DELETE: api/publisher/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
-            var record = new Publisher { Id = id };
-            var response = await _supabase.Client.From<Publisher>().Delete(record);
-            return Ok(response.Models);
+            try
+            {
+                var record = new Publisher { Id = id };
+                await _supabase.Client.From<Publisher>().Delete(record);
+
+                return Ok(ApiResponse.SuccessResult("Publisher deleted successfully"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting publisher {Id}", id);
+                return BadRequest(ApiResponse.ErrorResult($"Error deleting publisher: {ex.Message}"));
+            }
         }
     }
 }

@@ -13,7 +13,7 @@ public class Subscription : BaseModel
     public Guid UserId { get; set; }
 
     [Column("plan_name")]
-    public string PlanName { get; set; }
+    public string PlanName { get; set; } = string.Empty;
 
     [Column("start_date")]
     public DateTime StartDate { get; set; }

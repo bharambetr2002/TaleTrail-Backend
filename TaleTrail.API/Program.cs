@@ -6,6 +6,7 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+DotNetEnv.Env.Load();
 // ✅ Load Supabase credentials from environment
 var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
 var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY");

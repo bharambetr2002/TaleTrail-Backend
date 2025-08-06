@@ -10,7 +10,7 @@ public class Book : BaseModel
     public Guid Id { get; set; }
 
     [Column("title")]
-    public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     [Column("description")]
     public string? Description { get; set; }

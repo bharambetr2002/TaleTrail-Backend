@@ -33,8 +33,8 @@ namespace TaleTrail.API.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            // In a real app, you'd invalidate the token server-side
-            return Ok(ApiResponse.SuccessResult("Logged out successfully"));
+            var success = await _authService.LogoutAsync();
+            return Ok(ApiResponse.SuccessResult(success ? "Logged out successfully" : "Logout failed"));
         }
     }
 }
