@@ -9,7 +9,8 @@ namespace TaleTrail.API.DTOs
         public Guid BookId { get; set; }
 
         [Required]
-        // You could create an Enum for this later for more type safety
+        [RegularExpression("^(wanna_read|in_progress|completed|dropped)$",
+            ErrorMessage = "Status must be one of: wanna_read, in_progress, completed, dropped")]
         public string Status { get; set; } = string.Empty;
     }
 }

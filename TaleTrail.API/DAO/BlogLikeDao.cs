@@ -14,16 +14,30 @@ namespace TaleTrail.API.DAO
 
         public BlogLikeDao(SupabaseService service) => _client = service.Client;
 
-        public async Task<List<BlogLike>> GetByBlogId(Guid blogId) =>
-            (await _client.From<BlogLike>().Where(bl => bl.BlogId == blogId).Get()).Models;
+        public async Task<List<BlogLike>> GetByBlogId(Guid blogId)
+        {
+            var response = await _client.From<BlogLike>()
+                .Filter("blog_id", Supabase.Postgrest.Constants.Operator.Equals, blogId.ToString())
+                .Get();
+            return response.Models;
+        }
 
-        public async Task<List<BlogLike>> GetByUserId(Guid userId) =>
-            (await _client.From<BlogLike>().Where(bl => bl.UserId == userId).Get()).Models;
+        public async Task<List<BlogLike>> GetByUserId(Guid userId)
+        {
+            var response = await _client.From<BlogLike>()
+                .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Get();
+            return response.Models;
+        }
 
-        public async Task<BlogLike?> GetByBlogAndUser(Guid blogId, Guid userId) =>
-            (await _client.From<BlogLike>()
-                .Where(bl => bl.BlogId == blogId && bl.UserId == userId)
-                .Get()).Models?.FirstOrDefault();
+        public async Task<BlogLike?> GetByBlogAndUser(Guid blogId, Guid userId)
+        {
+            var response = await _client.From<BlogLike>()
+                .Filter("blog_id", Supabase.Postgrest.Constants.Operator.Equals, blogId.ToString())
+                .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Get();
+            return response.Models?.FirstOrDefault();
+        }
 
         public async Task<BlogLike?> Add(BlogLike blogLike)
         {
@@ -31,9 +45,12 @@ namespace TaleTrail.API.DAO
             return response.Models.FirstOrDefault();
         }
 
-        public async Task Delete(BlogLike blogLike)
+        public async Task Delete(Guid blogId, Guid userId)
         {
-            await _client.From<BlogLike>().Delete(blogLike);
+            await _client.From<BlogLike>()
+                .Filter("blog_id", Supabase.Postgrest.Constants.Operator.Equals, blogId.ToString())
+                .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Delete();
         }
     }
 }

@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Services;
-// Corrected using statements
 using TaleTrail.API.DTOs.Auth;
 using TaleTrail.API.Helpers;
 using System.Threading.Tasks;
-using TaleTrail.API.DTOs.Auth.Signup;
 
 namespace TaleTrail.API.Controllers
 {

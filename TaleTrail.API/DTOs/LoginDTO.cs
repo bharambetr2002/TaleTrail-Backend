@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TaleTrail.API.DTOs.Auth.Signup
+namespace TaleTrail.API.DTOs.Auth
 {
     public class LoginDTO
     {

@@ -34,7 +34,7 @@ namespace TaleTrail.API.Controllers
             {
                 var userId = GetCurrentUserId();
                 var userBooks = await _userBookService.GetUserReadingListAsync(userId);
-                return Ok(ApiResponse<object>.SuccessResult(userBooks));
+                return Ok(ApiResponse<object>.SuccessResult(userBooks, $"Found {userBooks.Count} books in your reading list"));
             }
             catch (Exception ex)
             {

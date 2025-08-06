@@ -8,10 +8,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
-var builder = WebApplication.CreateBuilder(args);
-
-// Load environment variables from .env file
+// Load environment variables FIRST
 DotNetEnv.Env.Load();
+
+var builder = WebApplication.CreateBuilder(args);
 
 // --- Configuration ---
 var supabaseJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET")
@@ -19,7 +19,7 @@ var supabaseJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET"
 
 // --- Service Registration ---
 
-// Add .NET Core Authentication
+// Add .NET Core Authentication with proper Supabase claim mapping
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -30,7 +30,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+            // Map Supabase claims to .NET claims
+            NameClaimType = "sub", // Maps 'sub' claim to NameIdentifier
+            RoleClaimType = "role" // Maps 'role' claim to Role
         };
     });
 
@@ -61,7 +64,6 @@ builder.Services.AddScoped<PublisherService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<UserBookService>();
 builder.Services.AddScoped<UserService>();
-
 
 // Add health check
 builder.Services.AddHealthChecks();
@@ -134,7 +136,7 @@ if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABL
 
 app.UseHttpsRedirection();
 
-// CRITICAL: Add Authentication and Authorization middleware
+// CRITICAL: Use built-in Authentication and Authorization middleware (removed custom middleware)
 app.UseAuthentication();
 app.UseAuthorization();
 

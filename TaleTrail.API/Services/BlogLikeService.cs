@@ -34,8 +34,7 @@ namespace TaleTrail.API.Services
             var blogLike = new BlogLike
             {
                 BlogId = blogId,
-                UserId = userId,
-                CreatedAt = DateTime.UtcNow
+                UserId = userId
             };
 
             var createdLike = await _blogLikeDao.Add(blogLike);
@@ -56,7 +55,7 @@ namespace TaleTrail.API.Services
                 return false; // Like not found
             }
 
-            await _blogLikeDao.Delete(existingLike);
+            await _blogLikeDao.Delete(blogId, userId);
             _logger.LogInformation("Blog {BlogId} unliked by user {UserId}", blogId, userId);
             return true;
         }

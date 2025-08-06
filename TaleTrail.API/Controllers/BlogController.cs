@@ -82,8 +82,7 @@ namespace TaleTrail.API.Controllers
 
                 if (blog == null)
                 {
-                    // CORRECTED LINE: Pass the error message string directly to Forbid()
-                    return Forbid("You are not authorized to update this blog or it does not exist.");
+                    return StatusCode(403, ApiResponse.ErrorResult("You are not authorized to update this blog or it does not exist."));
                 }
 
                 return Ok(ApiResponse<object>.SuccessResult(blog, "Blog updated successfully"));
@@ -106,8 +105,7 @@ namespace TaleTrail.API.Controllers
 
                 if (!success)
                 {
-                    // CORRECTED LINE: Pass the error message string directly to Forbid()
-                    return Forbid("You are not authorized to delete this blog or it does not exist.");
+                    return StatusCode(403, ApiResponse.ErrorResult("You are not authorized to delete this blog or it does not exist."));
                 }
 
                 return Ok(ApiResponse.SuccessResult("Blog deleted successfully"));
