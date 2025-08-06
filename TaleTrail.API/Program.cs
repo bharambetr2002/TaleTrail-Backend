@@ -22,11 +22,18 @@ if (string.IsNullOrEmpty(supabaseJwtSecret))
 // ✅ Register services
 builder.Services.AddSingleton<SupabaseService>();
 builder.Services.AddSingleton<JwtService>();
+
+// Core business services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<BookService>();
 builder.Services.AddScoped<BlogService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<WatchlistService>();
+
+// Additional services (newly added)
+builder.Services.AddScoped<FeedbackService>();
+builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<UserService>();
 
 // ✅ Add health check for Supabase
 builder.Services.AddHealthChecks().AddCheck("supabase", () =>
@@ -150,4 +157,4 @@ app.MapGet("/", () => Results.Ok(new
     authentication = "JWT-Enabled"
 }));
 
-app.Run();  
+app.Run();

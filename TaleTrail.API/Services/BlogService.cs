@@ -16,6 +16,72 @@ namespace TaleTrail.API.Services
             _logger = logger;
         }
 
+        public async Task<List<BlogResponseDto>> GetAllBlogsAsync()
+        {
+            try
+            {
+                var response = await _supabase.Client.From<Blog>()
+                    .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
+                    .Get();
+
+                return response.Models?.ToDto() ?? new List<BlogResponseDto>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get all blogs");
+                throw new AppException($"Failed to get blogs: {ex.Message}", ex);
+            }
+        }
+
+        public async Task<List<BlogResponseDto>> GetUserBlogsAsync(Guid userId)
+        {
+            try
+            {
+                var response = await _supabase.Client.From<Blog>()
+                    .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
+                    .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
+                    .Get();
+
+                return response.Models?.ToDto() ?? new List<BlogResponseDto>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get blogs for user {UserId}", userId);
+                throw new AppException($"Failed to get user blogs: {ex.Message}", ex);
+            }
+        }
+
+        public async Task<BlogResponseDto> CreateBlogAsync(BlogDto blogDto, Guid userId)
+        {
+            ValidationHelper.ValidateModel(blogDto);
+
+            var blog = new Blog
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId, // From JWT token, not from client
+                Title = blogDto.Title,
+                Content = blogDto.Content,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            try
+            {
+                var response = await _supabase.Client.From<Blog>().Insert(blog);
+                var createdBlog = response.Models?.FirstOrDefault();
+
+                if (createdBlog == null)
+                    throw new AppException("Failed to create blog - no data returned");
+
+                _logger.LogInformation("Blog created successfully with ID {BlogId} for user {UserId}", createdBlog.Id, userId);
+                return createdBlog.ToDto();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create blog for user {UserId}. Title: {Title}", userId, blogDto.Title);
+                throw;
+            }
+        }
+
         public async Task<BlogResponseDto> UpdateBlogAsync(Guid id, BlogDto blogDto, Guid userId)
         {
             ValidationHelper.ValidateModel(blogDto);
@@ -75,54 +141,5 @@ namespace TaleTrail.API.Services
 
             return blog;
         }
-        Task<List<BlogResponseDto>> GetAllBlogsAsync()
-        {
-            var response = await _supabase.Client.From<Blog>()
-                .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-                .Get();
-
-            return response.Models?.ToDto() ?? new List<BlogResponseDto>();
-        }
-
-        public async Task<List<BlogResponseDto>> GetUserBlogsAsync(Guid userId)
-        {
-            var response = await _supabase.Client.From<Blog>()
-                .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
-                .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-                .Get();
-
-            return response.Models?.ToDto() ?? new List<BlogResponseDto>();
-        }
-
-        public async Task<BlogResponseDto> CreateBlogAsync(BlogDto blogDto, Guid userId)
-        {
-            ValidationHelper.ValidateModel(blogDto);
-
-            var blog = new Blog
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId, // From JWT token, not from client
-                Title = blogDto.Title,
-                Content = blogDto.Content,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            try
-            {
-                var response = await _supabase.Client.From<Blog>().Insert(blog);
-                var createdBlog = response.Models?.FirstOrDefault();
-
-                if (createdBlog == null)
-                    throw new AppException("Failed to create blog - no data returned");
-
-                _logger.LogInformation("Blog created successfully with ID {BlogId} for user {UserId}", createdBlog.Id, userId);
-                return createdBlog.ToDto();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create blog for user {UserId}. Title: {Title}", userId, blogDto.Title);
-                throw;
-            }
-        }
-
-        public async
+    }
+}
