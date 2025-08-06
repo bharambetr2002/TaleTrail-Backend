@@ -8,7 +8,7 @@ namespace TaleTrail.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ReviewController : ControllerBase
+    public class ReviewController : BaseController
     {
         private readonly SupabaseService _supabase;
         private readonly ILogger<ReviewController> _logger;
@@ -19,7 +19,6 @@ namespace TaleTrail.API.Controllers
             _logger = logger;
         }
 
-        // GET: api/review
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
@@ -45,7 +44,6 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // GET: api/review/book/{bookId}
         [HttpGet("book/{bookId}")]
         public async Task<IActionResult> GetByBook(Guid bookId)
         {
@@ -75,12 +73,13 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // GET: api/review/user/{userId}
-        [HttpGet("user/{userId}")]
-        public async Task<IActionResult> GetByUser(Guid userId)
+        [HttpGet("user/my-reviews")]
+        public async Task<IActionResult> GetMyReviews()
         {
             try
             {
+                var userId = GetCurrentUserId();
+
                 var response = await _supabase.Client
                     .From<Review>()
                     .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
@@ -96,16 +95,20 @@ namespace TaleTrail.API.Controllers
                     r.CreatedAt
                 }).ToList();
 
-                return Ok(ApiResponse<object>.SuccessResult(reviews, $"Found {reviews?.Count ?? 0} reviews by user"));
+                return Ok(ApiResponse<object>.SuccessResult(reviews, $"Found {reviews?.Count ?? 0} reviews"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized attempt to get user reviews");
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting reviews for user {UserId}", userId);
+                _logger.LogError(ex, "Error getting user reviews");
                 return BadRequest(ApiResponse.ErrorResult($"Error getting user reviews: {ex.Message}"));
             }
         }
 
-        // POST: api/review
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] ReviewDto reviewDto)
         {
@@ -114,13 +117,13 @@ namespace TaleTrail.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
 
-                // In a real app, get userId from JWT token
-                var userId = Guid.NewGuid(); // Placeholder
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
 
                 var review = new Review
                 {
                     Id = Guid.NewGuid(),
-                    UserId = userId,
+                    UserId = userId, // From JWT token, not from client
                     BookId = reviewDto.BookId,
                     Rating = reviewDto.Rating,
                     Comment = reviewDto.Comment,
@@ -142,7 +145,13 @@ namespace TaleTrail.API.Controllers
                     created.Comment,
                     created.CreatedAt
                 };
+
                 return Ok(ApiResponse<object>.SuccessResult(result, "Review created successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized review creation attempt");
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
@@ -151,7 +160,6 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // PUT: api/review/{id}
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] ReviewDto reviewDto)
         {
@@ -160,19 +168,36 @@ namespace TaleTrail.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
 
+                var userId = GetCurrentUserId();
+
+                // Get existing review and verify ownership
+                var existingResponse = await _supabase.Client
+                    .From<Review>()
+                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
+                    .Get();
+
+                var existingReview = existingResponse.Models?.FirstOrDefault();
+                if (existingReview == null)
+                    return NotFound(ApiResponse.ErrorResult("Review not found"));
+
+                if (existingReview.UserId != userId)
+                    return Forbid("You can only update your own reviews");
+
                 var updated = new Review
                 {
                     Id = id,
+                    UserId = userId,
                     BookId = reviewDto.BookId,
                     Rating = reviewDto.Rating,
-                    Comment = reviewDto.Comment
+                    Comment = reviewDto.Comment,
+                    CreatedAt = existingReview.CreatedAt // Keep original creation date
                 };
 
                 var response = await _supabase.Client.From<Review>().Update(updated);
                 var review = response.Models?.FirstOrDefault();
 
                 if (review == null)
-                    return NotFound(ApiResponse.ErrorResult("Review not found or update failed"));
+                    return BadRequest(ApiResponse.ErrorResult("Update failed"));
 
                 var result = new
                 {
@@ -183,7 +208,13 @@ namespace TaleTrail.API.Controllers
                     review.Comment,
                     review.CreatedAt
                 };
+
                 return Ok(ApiResponse<object>.SuccessResult(result, "Review updated successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized review update attempt for review {ReviewId}", id);
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
@@ -192,16 +223,34 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        // DELETE: api/review/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
             try
             {
-                var review = new Review { Id = id };
-                await _supabase.Client.From<Review>().Delete(review);
+                var userId = GetCurrentUserId();
+
+                // Get existing review and verify ownership
+                var existingResponse = await _supabase.Client
+                    .From<Review>()
+                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
+                    .Get();
+
+                var existingReview = existingResponse.Models?.FirstOrDefault();
+                if (existingReview == null)
+                    return NotFound(ApiResponse.ErrorResult("Review not found"));
+
+                if (existingReview.UserId != userId)
+                    return Forbid("You can only delete your own reviews");
+
+                await _supabase.Client.From<Review>().Delete(existingReview);
 
                 return Ok(ApiResponse.SuccessResult("Review deleted successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized review deletion attempt for review {ReviewId}", id);
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {

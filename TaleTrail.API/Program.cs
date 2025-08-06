@@ -7,15 +7,21 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 DotNetEnv.Env.Load();
-// ✅ Load Supabase credentials from environment
+
+// ✅ Load required environment variables
 var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
 var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY");
+var supabaseJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
 
 if (string.IsNullOrEmpty(supabaseUrl) || string.IsNullOrEmpty(supabaseKey))
     throw new InvalidOperationException("Supabase credentials are missing");
 
+if (string.IsNullOrEmpty(supabaseJwtSecret))
+    throw new InvalidOperationException("SUPABASE_JWT_SECRET environment variable is missing. Get it from Supabase Dashboard > Settings > API");
+
 // ✅ Register services
 builder.Services.AddSingleton<SupabaseService>();
+builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<BookService>();
 builder.Services.AddScoped<BlogService>();
@@ -64,7 +70,7 @@ builder.Services.AddSwaggerGen(opt =>
     {
         Title = "TaleTrail API",
         Version = "v1",
-        Description = "Backend API for book tracking",
+        Description = "Backend API for book tracking with JWT Authentication",
         Contact = new OpenApiContact
         {
             Name = "TaleTrail",
@@ -74,7 +80,7 @@ builder.Services.AddSwaggerGen(opt =>
 
     opt.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Enter 'Bearer {token}'",
+        Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -97,7 +103,7 @@ builder.Services.AddSwaggerGen(opt =>
     });
 });
 
-// ✅ Configure Kestrel for Render deployment
+// ✅ Configure Kestrel for deployment
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
@@ -106,12 +112,12 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 
 var app = builder.Build();
 
-// ✅ Middleware
+// ✅ Middleware pipeline (ORDER MATTERS!)
 app.UseMiddleware<ErrorHandlerMiddleware>();
 app.UseCors("AppCors");
 app.UseRateLimiter();
 
-// ✅ Enable Swagger in production for Render
+// ✅ Enable Swagger
 if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABLE_SWAGGER") == "true")
 {
     app.UseSwagger();
@@ -124,7 +130,10 @@ if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("ENABL
 
 app.UseStaticFiles();
 app.UseRouting();
-// app.UseMiddleware<SupabaseAuthMiddleware>(); // 🔒 Optional, if using JWT
+
+// ✅ CRITICAL: Enable JWT Authentication Middleware
+app.UseMiddleware<SupabaseAuthMiddleware>();
+
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
@@ -137,7 +146,8 @@ app.MapGet("/", () => Results.Ok(new
     status = "healthy",
     environment = app.Environment.EnvironmentName,
     time = DateTime.UtcNow,
-    port = port
+    port = port,
+    authentication = "JWT-Enabled"
 }));
 
-app.Run();
+app.Run();  

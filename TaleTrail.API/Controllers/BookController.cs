@@ -7,7 +7,7 @@ namespace TaleTrail.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class BookController : ControllerBase
+    public class BookController : BaseController
     {
         private readonly BookService _bookService;
         private readonly ILogger<BookController> _logger;
@@ -49,19 +49,27 @@ namespace TaleTrail.API.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreateBook([FromBody] CreateBookRequest request)
+        public async Task<IActionResult> CreateBook([FromBody] BookDto bookDto)
         {
             try
             {
                 if (!ModelState.IsValid)
                     return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
 
-                var book = await _bookService.CreateBookAsync(request.BookDto, request.UserId);
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
+
+                var book = await _bookService.CreateBookAsync(bookDto, userId);
                 return Ok(ApiResponse<object>.SuccessResult(book, "Book created successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized book creation attempt");
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating book for user {UserId}", request.UserId);
+                _logger.LogError(ex, "Error creating book");
                 return BadRequest(ApiResponse.ErrorResult($"Failed to create book: {ex.Message}"));
             }
         }
@@ -74,8 +82,16 @@ namespace TaleTrail.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
 
-                var book = await _bookService.UpdateBookAsync(id, bookDto);
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
+
+                var book = await _bookService.UpdateBookAsync(id, bookDto, userId);
                 return Ok(ApiResponse<object>.SuccessResult(book, "Book updated successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized book update attempt for book {BookId}", id);
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
@@ -89,8 +105,16 @@ namespace TaleTrail.API.Controllers
         {
             try
             {
-                await _bookService.DeleteBookAsync(id);
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
+
+                await _bookService.DeleteBookAsync(id, userId);
                 return Ok(ApiResponse.SuccessResult("Book deleted successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized book deletion attempt for book {BookId}", id);
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
@@ -98,12 +122,26 @@ namespace TaleTrail.API.Controllers
                 return BadRequest(ApiResponse.ErrorResult($"Failed to delete book: {ex.Message}"));
             }
         }
-    }
 
-    // Request model to handle both userId and bookDto
-    public class CreateBookRequest
-    {
-        public Guid UserId { get; set; }
-        public BookDto BookDto { get; set; } = new BookDto();
+        [HttpGet("user/my-books")]
+        public async Task<IActionResult> GetMyBooks()
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var books = await _bookService.GetUserBooksAsync(userId);
+                return Ok(ApiResponse<object>.SuccessResult(books, $"Found {books.Count} books"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized attempt to get user books");
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user books");
+                return BadRequest(ApiResponse.ErrorResult($"Error getting books: {ex.Message}"));
+            }
+        }
     }
 }

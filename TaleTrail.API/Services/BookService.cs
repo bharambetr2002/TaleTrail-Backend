@@ -18,7 +18,20 @@ namespace TaleTrail.API.Services
 
         public async Task<List<BookResponseDto>> GetAllBooksAsync()
         {
-            var response = await _supabase.Client.From<Book>().Get();
+            var response = await _supabase.Client.From<Book>()
+                .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
+                .Get();
+
+            return response.Models?.ToDto() ?? new List<BookResponseDto>();
+        }
+
+        public async Task<List<BookResponseDto>> GetUserBooksAsync(Guid userId)
+        {
+            var response = await _supabase.Client.From<Book>()
+                .Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
+                .Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
+                .Get();
+
             return response.Models?.ToDto() ?? new List<BookResponseDto>();
         }
 
@@ -39,9 +52,6 @@ namespace TaleTrail.API.Services
         {
             ValidationHelper.ValidateModel(bookDto);
 
-            // Validate that the user exists
-            await ValidateUserExistsAsync(userId);
-
             var book = new Book
             {
                 Id = Guid.NewGuid(),
@@ -50,7 +60,7 @@ namespace TaleTrail.API.Services
                 CoverUrl = bookDto.CoverUrl,
                 Language = bookDto.Language,
                 PublicationYear = bookDto.PublicationYear,
-                UserId = userId,
+                UserId = userId, // From JWT token, not from client
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -72,17 +82,11 @@ namespace TaleTrail.API.Services
             }
         }
 
-        public async Task<BookResponseDto> UpdateBookAsync(Guid id, BookDto bookDto)
+        public async Task<BookResponseDto> UpdateBookAsync(Guid id, BookDto bookDto, Guid userId)
         {
             ValidationHelper.ValidateModel(bookDto);
 
-            var existingBookResponse = await _supabase.Client.From<Book>()
-                .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
-                .Get();
-
-            var existingBook = existingBookResponse.Models?.FirstOrDefault();
-            if (existingBook == null)
-                throw new NotFoundException($"Book with ID {id} not found");
+            var existingBook = await GetBookByIdForUser(id, userId);
 
             existingBook.Title = bookDto.Title;
             existingBook.Description = bookDto.Description;
@@ -90,16 +94,41 @@ namespace TaleTrail.API.Services
             existingBook.Language = bookDto.Language;
             existingBook.PublicationYear = bookDto.PublicationYear;
 
-            var response = await _supabase.Client.From<Book>().Update(existingBook);
-            var updatedBook = response.Models?.FirstOrDefault();
+            try
+            {
+                var response = await _supabase.Client.From<Book>().Update(existingBook);
+                var updatedBook = response.Models?.FirstOrDefault();
 
-            if (updatedBook == null)
-                throw new AppException("Failed to update book");
+                if (updatedBook == null)
+                    throw new AppException("Failed to update book");
 
-            return updatedBook.ToDto();
+                _logger.LogInformation("Book {BookId} updated successfully by user {UserId}", id, userId);
+                return updatedBook.ToDto();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update book {BookId} for user {UserId}", id, userId);
+                throw;
+            }
         }
 
-        public async Task DeleteBookAsync(Guid id)
+        public async Task DeleteBookAsync(Guid id, Guid userId)
+        {
+            var book = await GetBookByIdForUser(id, userId);
+
+            try
+            {
+                await _supabase.Client.From<Book>().Delete(book);
+                _logger.LogInformation("Book {BookId} deleted successfully by user {UserId}", id, userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete book {BookId} for user {UserId}", id, userId);
+                throw new AppException($"Failed to delete book: {ex.Message}", ex);
+            }
+        }
+
+        private async Task<Book> GetBookByIdForUser(Guid id, Guid userId)
         {
             var response = await _supabase.Client.From<Book>()
                 .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, id.ToString())
@@ -109,34 +138,11 @@ namespace TaleTrail.API.Services
             if (book == null)
                 throw new NotFoundException($"Book with ID {id} not found");
 
-            await _supabase.Client.From<Book>().Delete(book);
-            _logger.LogInformation("Book with ID {BookId} deleted successfully", id);
-        }
+            // Authorization check: Only allow the owner to modify/delete
+            if (book.UserId != userId)
+                throw new UnauthorizedAccessException("You can only modify your own books");
 
-        private async Task ValidateUserExistsAsync(Guid userId)
-        {
-            try
-            {
-                var userResponse = await _supabase.Client.From<User>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, userId.ToString())
-                    .Get();
-
-                if (!userResponse.Models?.Any() == true)
-                {
-                    throw new NotFoundException($"User with ID {userId} does not exist. Please ensure the user is registered before creating books.");
-                }
-
-                _logger.LogDebug("User validation successful for userId: {UserId}", userId);
-            }
-            catch (NotFoundException)
-            {
-                throw; // Re-throw NotFoundException as-is
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error validating user existence for userId: {UserId}", userId);
-                throw new AppException($"Failed to validate user: {ex.Message}", ex);
-            }
+            return book;
         }
     }
 }

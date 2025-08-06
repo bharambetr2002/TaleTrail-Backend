@@ -7,69 +7,112 @@ namespace TaleTrail.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class BlogController : ControllerBase
+    public class BlogController : BaseController
     {
         private readonly BlogService _blogService;
-        private readonly SupabaseService _supabase;
         private readonly ILogger<BlogController> _logger;
 
-        public BlogController(BlogService blogService, SupabaseService supabase, ILogger<BlogController> logger)
+        public BlogController(BlogService blogService, ILogger<BlogController> logger)
         {
             _blogService = blogService;
-            _supabase = supabase;
             _logger = logger;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAllBlogs()
         {
-            var blogs = await _blogService.GetAllBlogsAsync();
-            return Ok(ApiResponse<object>.SuccessResult(blogs));
+            try
+            {
+                var blogs = await _blogService.GetAllBlogsAsync();
+                return Ok(ApiResponse<object>.SuccessResult(blogs));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all blogs");
+                return BadRequest(ApiResponse.ErrorResult($"Error getting blogs: {ex.Message}"));
+            }
         }
 
         [HttpGet("user/{userId}")]
         public async Task<IActionResult> GetUserBlogs(Guid userId)
         {
-            var blogs = await _blogService.GetUserBlogsAsync(userId);
-            return Ok(ApiResponse<object>.SuccessResult(blogs));
+            try
+            {
+                var blogs = await _blogService.GetUserBlogsAsync(userId);
+                return Ok(ApiResponse<object>.SuccessResult(blogs));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user blogs for user {UserId}", userId);
+                return BadRequest(ApiResponse.ErrorResult($"Error getting user blogs: {ex.Message}"));
+            }
+        }
+
+        [HttpGet("user/my-blogs")]
+        public async Task<IActionResult> GetMyBlogs()
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var blogs = await _blogService.GetUserBlogsAsync(userId);
+                return Ok(ApiResponse<object>.SuccessResult(blogs, $"Found {blogs.Count} blogs"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized attempt to get user blogs");
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user blogs");
+                return BadRequest(ApiResponse.ErrorResult($"Error getting blogs: {ex.Message}"));
+            }
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreateBlog([FromBody] CreateBlogRequest request)
+        public async Task<IActionResult> CreateBlog([FromBody] BlogDto blogDto)
         {
             try
             {
                 if (!ModelState.IsValid)
                     return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
 
-                // Validate that the user exists before creating the blog
-                var userResponse = await _supabase.Client
-                    .From<TaleTrail.API.Models.User>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, request.UserId.ToString())
-                    .Get();
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
 
-                if (!userResponse.Models?.Any() == true)
-                {
-                    return BadRequest(ApiResponse.ErrorResult($"User with ID {request.UserId} does not exist"));
-                }
-
-                var blog = await _blogService.CreateBlogAsync(request.BlogDto, request.UserId);
+                var blog = await _blogService.CreateBlogAsync(blogDto, userId);
                 return Ok(ApiResponse<object>.SuccessResult(blog, "Blog created successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized blog creation attempt");
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating blog for user {UserId}", request.UserId);
+                _logger.LogError(ex, "Error creating blog");
                 return BadRequest(ApiResponse.ErrorResult($"Failed to create blog: {ex.Message}"));
             }
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateBlog(Guid id, [FromBody] CreateBlogRequest request)
+        public async Task<IActionResult> UpdateBlog(Guid id, [FromBody] BlogDto blogDto)
         {
             try
             {
-                var blog = await _blogService.UpdateBlogAsync(id, request.BlogDto, request.UserId);
+                if (!ModelState.IsValid)
+                    return BadRequest(ApiResponse.ErrorResult("Invalid input data"));
+
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
+
+                var blog = await _blogService.UpdateBlogAsync(id, blogDto, userId);
                 return Ok(ApiResponse<object>.SuccessResult(blog, "Blog updated successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized blog update attempt for blog {BlogId}", id);
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
             }
             catch (Exception ex)
             {
@@ -77,12 +120,28 @@ namespace TaleTrail.API.Controllers
                 return BadRequest(ApiResponse.ErrorResult($"Failed to update blog: {ex.Message}"));
             }
         }
-    }
 
-    // Add this new request model to handle both userId and blogDto
-    public class CreateBlogRequest
-    {
-        public Guid UserId { get; set; }
-        public BlogDto BlogDto { get; set; } = new BlogDto();
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteBlog(Guid id)
+        {
+            try
+            {
+                // Get user ID from JWT token via middleware
+                var userId = GetCurrentUserId();
+
+                await _blogService.DeleteBlogAsync(id, userId);
+                return Ok(ApiResponse.SuccessResult("Blog deleted successfully"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized blog deletion attempt for blog {BlogId}", id);
+                return Unauthorized(ApiResponse.ErrorResult("User not authenticated"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting blog {BlogId}", id);
+                return BadRequest(ApiResponse.ErrorResult($"Failed to delete blog: {ex.Message}"));
+            }
+        }
     }
 }
