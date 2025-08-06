@@ -4,6 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- THIS IS THE LINE YOU NEED TO ADD -->
+    <PublishLaunchSettings>false</PublishLaunchSettings>
+
   </PropertyGroup>
 
   <ItemGroup>
