@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Services;
 using TaleTrail.API.DTOs.Auth;
-using TaleTrail.API.Helpers;
-using System.Threading.Tasks;
 
 namespace TaleTrail.API.Controllers
 {
@@ -20,15 +18,29 @@ namespace TaleTrail.API.Controllers
         [HttpPost("signup")]
         public async Task<IActionResult> Signup([FromBody] SignupDTO request)
         {
-            var result = await _authService.SignupAsync(request);
-            return Ok(ApiResponse<object>.SuccessResult(result, "User registered successfully"));
+            try
+            {
+                var result = await _authService.SignupAsync(request);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO request)
         {
-            var result = await _authService.LoginAsync(request);
-            return Ok(ApiResponse<object>.SuccessResult(result, "Login successful"));
+            try
+            {
+                var result = await _authService.LoginAsync(request);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

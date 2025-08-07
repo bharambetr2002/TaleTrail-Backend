@@ -5,21 +5,18 @@ using TaleTrail.API.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class BookService
     {
         private readonly BookDao _bookDao;
-        private readonly BookAuthorDao _bookAuthorDao; // Add this for linking authors
-        private readonly ILogger<BookService> _logger;
+        private readonly BookAuthorDao _bookAuthorDao;
 
-        public BookService(BookDao bookDao, BookAuthorDao bookAuthorDao, ILogger<BookService> logger)
+        public BookService(BookDao bookDao, BookAuthorDao bookAuthorDao)
         {
             _bookDao = bookDao;
             _bookAuthorDao = bookAuthorDao;
-            _logger = logger;
         }
 
         public async Task<List<Book>> GetAllBooksAsync(string? searchTerm = null)
@@ -50,7 +47,6 @@ namespace TaleTrail.API.Services
                 throw new AppException("Failed to create book.");
             }
 
-            // After creating the book, link it to the authors
             foreach (var authorId in bookDto.AuthorIds)
             {
                 var bookAuthorLink = new BookAuthor { BookId = createdBook.Id, AuthorId = authorId };
@@ -60,6 +56,7 @@ namespace TaleTrail.API.Services
             return createdBook;
         }
 
+        // --- METHOD RESTORED ---
         public async Task<Book?> UpdateBookAsync(Guid id, BookDto bookDto)
         {
             var existingBook = await _bookDao.GetByIdAsync(id);
@@ -74,13 +71,10 @@ namespace TaleTrail.API.Services
             existingBook.PublicationYear = bookDto.PublicationYear;
             existingBook.PublisherId = bookDto.PublisherId;
 
-            // Note: Handling author link updates can be complex.
-            // For simplicity, this version doesn't change author links on update.
-            // A more advanced version would remove old links and add new ones.
-
             return await _bookDao.UpdateAsync(existingBook);
         }
 
+        // --- METHOD RESTORED ---
         public async Task<bool> DeleteBookAsync(Guid id)
         {
             var existingBook = await _bookDao.GetByIdAsync(id);

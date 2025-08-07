@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization; // Add this for authorization
+using Microsoft.AspNetCore.Authorization;
 using TaleTrail.API.Services;
 using TaleTrail.API.DTOs;
 using TaleTrail.API.Helpers;
@@ -13,110 +13,66 @@ namespace TaleTrail.API.Controllers
     public class BookController : BaseController
     {
         private readonly BookService _bookService;
-        private readonly ILogger<BookController> _logger;
-
-        public BookController(BookService bookService, ILogger<BookController> logger)
+        // This is where the ILogger was, but we've removed it for simplicity.
+        // It's good practice to add it back later for production code.
+        public BookController(BookService bookService)
         {
             _bookService = bookService;
-            _logger = logger;
         }
 
-        // GET: api/book - This is public
+        // GET: api/book
         [HttpGet]
         public async Task<IActionResult> GetAllBooks([FromQuery] string? search = null)
         {
-            try
-            {
-                var books = await _bookService.GetAllBooksAsync(search);
-                return Ok(ApiResponse<object>.SuccessResult(books, $"Found {books.Count} books"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting all books");
-                return BadRequest(ApiResponse.ErrorResult($"Error getting books: {ex.Message}"));
-            }
+            var books = await _bookService.GetAllBooksAsync(search);
+            return Ok(ApiResponse<object>.SuccessResult(books));
         }
 
-        // GET: api/book/{id} - This is public
+        // GET: api/book/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetBookById(Guid id)
         {
-            try
+            var book = await _bookService.GetBookByIdAsync(id);
+            if (book == null)
             {
-                var book = await _bookService.GetBookByIdAsync(id);
-                if (book == null)
-                {
-                    return NotFound(ApiResponse.ErrorResult("Book not found"));
-                }
-                return Ok(ApiResponse<object>.SuccessResult(book));
+                return NotFound(ApiResponse.ErrorResult("Book not found"));
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting book {BookId}", id);
-                return BadRequest(ApiResponse.ErrorResult($"Error getting book: {ex.Message}"));
-            }
+            return Ok(ApiResponse<object>.SuccessResult(book));
         }
 
-        // POST: api/book - ADMIN ONLY
+        // POST: api/book
         [HttpPost]
-        [Authorize(Roles = "admin")] // IMPORTANT: Secures the endpoint
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> CreateBook([FromBody] BookDto bookDto)
         {
-            try
-            {
-                var book = await _bookService.CreateBookAsync(bookDto);
-                return CreatedAtAction(nameof(GetBookById), new { id = book.Id }, ApiResponse<object>.SuccessResult(book, "Book created successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating book");
-                return BadRequest(ApiResponse.ErrorResult($"Failed to create book: {ex.Message}"));
-            }
+            var book = await _bookService.CreateBookAsync(bookDto);
+            return CreatedAtAction(nameof(GetBookById), new { id = book.Id }, ApiResponse<object>.SuccessResult(book, "Book created."));
         }
 
-        // PUT: api/book/{id} - ADMIN ONLY
+        // PUT: api/book/{id}
         [HttpPut("{id}")]
-        [Authorize(Roles = "admin")] // IMPORTANT: Secures the endpoint
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> UpdateBook(Guid id, [FromBody] BookDto bookDto)
         {
-            try
+            var book = await _bookService.UpdateBookAsync(id, bookDto);
+            if (book == null)
             {
-                var book = await _bookService.UpdateBookAsync(id, bookDto);
-                if (book == null)
-                {
-                    return NotFound(ApiResponse.ErrorResult("Book not found"));
-                }
-                return Ok(ApiResponse<object>.SuccessResult(book, "Book updated successfully"));
+                return NotFound(ApiResponse.ErrorResult("Book not found"));
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating book {BookId}", id);
-                return BadRequest(ApiResponse.ErrorResult($"Failed to update book: {ex.Message}"));
-            }
+            return Ok(ApiResponse<object>.SuccessResult(book, "Book updated."));
         }
 
-        // DELETE: api/book/{id} - ADMIN ONLY
+        // DELETE: api/book/{id}
         [HttpDelete("{id}")]
-        [Authorize(Roles = "admin")] // IMPORTANT: Secures the endpoint
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> DeleteBook(Guid id)
         {
-            try
+            var success = await _bookService.DeleteBookAsync(id);
+            if (!success)
             {
-                var success = await _bookService.DeleteBookAsync(id);
-                if (!success)
-                {
-                    return NotFound(ApiResponse.ErrorResult("Book not found"));
-                }
-                return Ok(ApiResponse.SuccessResult("Book deleted successfully"));
+                return NotFound(ApiResponse.ErrorResult("Book not found"));
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting book {BookId}", id);
-                return BadRequest(ApiResponse.ErrorResult($"Failed to delete book: {ex.Message}"));
-            }
+            return Ok(ApiResponse.SuccessResult("Book deleted."));
         }
-
-        // The "user/my-books" endpoint has been removed.
-        // This logic belongs in the UserBookController.
     }
 }

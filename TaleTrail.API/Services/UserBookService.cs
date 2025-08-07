@@ -12,12 +12,10 @@ namespace TaleTrail.API.Services
     public class UserBookService
     {
         private readonly UserBookDao _userBookDao;
-        private readonly ILogger<UserBookService> _logger;
 
-        public UserBookService(UserBookDao userBookDao, ILogger<UserBookService> logger)
+        public UserBookService(UserBookDao userBookDao)
         {
             _userBookDao = userBookDao;
-            _logger = logger;
         }
 
         public async Task<List<UserBook>> GetUserReadingListAsync(Guid userId)
