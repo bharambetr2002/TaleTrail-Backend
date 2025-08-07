@@ -1,75 +1,29 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System;
-using System.Text;
-using System.Threading.Tasks;
-using TaleTrail.API.DAO;
 using TaleTrail.API.Services;
+using TaleTrail.API.Data;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 DotNetEnv.Env.Load();
 
+// ✅ Load required environment variables
+var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
+var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY");
+
 builder.Services.AddControllers();
+
+// ✅ Add SupabaseService
+builder.Services.AddSingleton(new SupabaseService(supabaseUrl!, supabaseKey!));
+
+// ✅ Register DataSeeder
+builder.Services.AddScoped<DataSeeder>();
+
+// ✅ Add Swagger for testing APIs
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
+builder.Services.AddSwaggerGen(c =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        In = ParameterLocation.Header,
-        Description = "Please enter a valid token",
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        BearerFormat = "JWT",
-        Scheme = "Bearer"
-    });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            new string[]{}
-        }
-    });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "TaleTrail.API", Version = "v1" });
 });
-
-var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET") ?? throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing.");
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-            ValidateIssuer = false,
-            ValidateAudience = false,
-        };
-    });
-
-builder.Services.AddAuthorization();
-
-builder.Services.AddSingleton<SupabaseService>();
-builder.Services.AddScoped<UserDao>();
-builder.Services.AddScoped<BookDao>();
-builder.Services.AddScoped<BookAuthorDao>();
-builder.Services.AddScoped<AuthorDao>();
-builder.Services.AddScoped<PublisherDao>();
-builder.Services.AddScoped<ReviewDao>();
-builder.Services.AddScoped<BlogDao>();
-builder.Services.AddScoped<BlogLikeDao>();
-builder.Services.AddScoped<UserBookDao>();
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<BookService>();
-builder.Services.AddScoped<UserService>();
-builder.Services.AddScoped<AuthorService>();
-builder.Services.AddScoped<PublisherService>();
-builder.Services.AddScoped<ReviewService>();
-builder.Services.AddScoped<BlogService>();
-builder.Services.AddScoped<BlogLikeService>();
-builder.Services.AddScoped<UserBookService>();
 
 var app = builder.Build();
 
@@ -80,21 +34,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// ✅ Run Seeder at Startup
 using (var scope = app.Services.CreateScope())
 {
-    var services = scope.ServiceProvider;
-    try
-    {
-        await TaleTrail.API.Data.DataSeeder.SeedData(services);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"An error occurred while seeding the database: {ex.Message}");
-    }
+    var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+    await seeder.SeedAsync();
 }
 
 app.Run();

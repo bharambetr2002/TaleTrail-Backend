@@ -1,57 +1,64 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
-using TaleTrail.API.DAO;
-using TaleTrail.API.Models;
+// File: Data/DataSeeder.cs
+using TaleTrail.API.Model;
+using TaleTrail.API.Services;
 
-namespace TaleTrail.API.Data
+namespace TaleTrail.API.Data;
+
+public class DataSeeder
 {
-    public static class DataSeeder
-    {
-        public static async Task SeedData(IServiceProvider services)
-        {
-            var authorDao = services.GetRequiredService<AuthorDao>();
-            var publisherDao = services.GetRequiredService<PublisherDao>();
-            var bookDao = services.GetRequiredService<BookDao>();
-            var bookAuthorDao = services.GetRequiredService<BookAuthorDao>();
+    private readonly SupabaseService _supabaseService;
+    private readonly ILogger<DataSeeder> _logger;
 
-            if ((await authorDao.GetAllAsync()).Any())
+    public DataSeeder(SupabaseService supabaseService, ILogger<DataSeeder> logger)
+    {
+        _supabaseService = supabaseService;
+        _logger = logger;
+    }
+
+    public async Task SeedAsync()
+    {
+        try
+        {
+            var response = await _supabaseService.Supabase.From<Book>().Get();
+
+            if (response.Models.Count > 0)
             {
-                Console.WriteLine("Database already contains data. Skipping seed process.");
+                _logger.LogInformation("Database already seeded.");
                 return;
             }
 
-            Console.WriteLine("Database is empty. Seeding initial static data...");
-
-            var authorMartin = await authorDao.AddAsync(new Author { Name = "George R.R. Martin" });
-            var authorTolkien = await authorDao.AddAsync(new Author { Name = "J.R.R. Tolkien" });
-
-            var publisherBantam = await publisherDao.AddAsync(new Publisher { Name = "Bantam Spectra" });
-            var publisherAllen = await publisherDao.AddAsync(new Publisher { Name = "Allen & Unwin" });
-
-            var bookGOT = await bookDao.AddAsync(new Book
+            var sampleBooks = new List<Book>
             {
-                Title = "A Game of Thrones",
-                Description = "The first book in the A Song of Ice and Fire series.",
-                PublicationYear = 1996,
-                PublisherId = publisherBantam.Id,
-                CreatedAt = DateTime.UtcNow
-            });
+                new Book
+                {
+                    Id = Guid.NewGuid(),
+                    Title = "The Pragmatic Programmer",
+                    Description = "Your Journey to Mastery",
+                    CoverUrl = "https://example.com/pragmatic.jpg",
+                    PublicationYear = 1999,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Book
+                {
+                    Id = Guid.NewGuid(),
+                    Title = "Clean Code",
+                    Description = "A Handbook of Agile Software Craftsmanship",
+                    CoverUrl = "https://example.com/cleancode.jpg",
+                    PublicationYear = 2008,
+                    CreatedAt = DateTime.UtcNow
+                }
+            };
 
-            var bookHobbit = await bookDao.AddAsync(new Book
+            foreach (var book in sampleBooks)
             {
-                Title = "The Hobbit",
-                Description = "A fantasy novel and children's book.",
-                PublicationYear = 1937,
-                PublisherId = publisherAllen.Id,
-                CreatedAt = DateTime.UtcNow
-            });
+                await _supabaseService.Supabase.From<Book>().Insert(book);
+            }
 
-            await bookAuthorDao.AddAsync(new BookAuthor { BookId = bookGOT.Id, AuthorId = authorMartin.Id });
-            await bookAuthorDao.AddAsync(new BookAuthor { BookId = bookHobbit.Id, AuthorId = authorTolkien.Id });
-
-            Console.WriteLine("Database seeding complete.");
+            _logger.LogInformation("Database seeded with sample books.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while seeding the database.");
         }
     }
 }
