@@ -1,5 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TaleTrail.API.Helpers;
 using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.Services;
 
@@ -16,52 +16,30 @@ public class BookController : ControllerBase
         _bookService = bookService;
     }
 
+    // ✅ GET /api/book?search=keyword
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string? search = null)
+    public async Task<IActionResult> GetAllBooks([FromQuery] string? search)
     {
-        try
-        {
-            var books = await _bookService.GetAllBooksAsync(search);
-            var message = string.IsNullOrEmpty(search)
-                ? "Books retrieved successfully"
-                : $"Found {books.Count} books matching '{search}'";
-
-            return Ok(ApiResponse<List<BookResponseDTO>>.SuccessResponse(message, books));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<List<BookResponseDTO>>.ErrorResponse($"Failed to retrieve books: {ex.Message}"));
-        }
+        var books = await _bookService.GetAllBooksAsync(search);
+        return Ok(new { success = true, message = "Success", data = books });
     }
 
+    // ✅ GET /api/book/{id}
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<IActionResult> GetBookById(Guid id)
     {
-        try
-        {
-            var book = await _bookService.GetBookByIdAsync(id);
-            if (book == null)
-                return NotFound(ApiResponse<BookResponseDTO>.ErrorResponse("Book not found"));
+        var book = await _bookService.GetBookByIdAsync(id);
+        if (book == null)
+            return NotFound(new { success = false, message = "Book not found" });
 
-            return Ok(ApiResponse<BookResponseDTO>.SuccessResponse("Book retrieved successfully", book));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<BookResponseDTO>.ErrorResponse($"Failed to retrieve book: {ex.Message}"));
-        }
+        return Ok(new { success = true, message = "Success", data = book });
     }
 
+    // ✅ GET /api/book/by-author/{authorId}
     [HttpGet("by-author/{authorId}")]
-    public async Task<IActionResult> GetByAuthor(Guid authorId)
+    public async Task<IActionResult> GetBooksByAuthor(Guid authorId)
     {
-        try
-        {
-            var books = await _bookService.GetBooksByAuthorAsync(authorId);
-            return Ok(ApiResponse<List<BookResponseDTO>>.SuccessResponse($"Found {books.Count} books by this author", books));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<List<BookResponseDTO>>.ErrorResponse($"Failed to retrieve author's books: {ex.Message}"));
-        }
+        var books = await _bookService.GetBooksByAuthorAsync(authorId);
+        return Ok(new { success = true, message = "Success", data = books });
     }
 }

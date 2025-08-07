@@ -3,26 +3,26 @@
 
 ## ✅ Working Endpoints
 
-- `POST /api/auth/signup` - yes
-- `POST /api/auth/login` - yes
+- `POST /api/auth/signup` - 
+- `POST /api/auth/login` - 
 - `GET /api/user/profile` - No
 - `PUT /api/user/profile` - No
-- `GET /api/profile/{username}` - yes
+- `GET /api/profile/{username}` - 
 
 ## 🔄 Now Fixed Endpoints
 
 ### 📚 Book Endpoints
-- `GET /api/book` (with optional `?search=`)
-- `GET /api/book/{id}`
-- `GET /api/book/by-author/{authorId}`
+- `GET /api/book` (with optional `?search=`) - Yes
+- `GET /api/book/{id}` - Yes
+- `GET /api/book/by-author/{authorId}` - yes (update(book_author table))
 
 ### ✍️ Author Endpoints
-- `GET /api/author`
-- `GET /api/author/{id}`
+- `GET /api/author` - yes
+- `GET /api/author/{id}` - yes
 
 ### 🏢 Publisher Endpoints
-- `GET /api/publisher`
-- `GET /api/publisher/{id}`
+- `GET /api/publisher` - yes
+- `GET /api/publisher/{id}` - yes
 
 ### 📝 Blog Endpoints
 - `GET /api/blog` (with optional `?userId=`)
