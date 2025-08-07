@@ -140,15 +140,9 @@ var app = builder.Build();
 // Middlewares
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API V1");
-        c.RoutePrefix = string.Empty;
-    });
-}
+app.UseSwagger();
+app.UseSwaggerUI();
+
 
 app.UseCors();
 app.UseAuthentication();
