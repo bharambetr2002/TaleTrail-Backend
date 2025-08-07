@@ -89,5 +89,18 @@ namespace TaleTrail.API.Services
                 throw new UnauthorizedAccessException("Invalid Supabase token.", ex);
             }
         }
+
+        /// <summary>
+        /// Checks if the JWT has a valid format (3 parts separated by dots).
+        /// </summary>
+        public bool IsValidJwtFormat(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return false;
+
+            if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                token = token.Substring(7);
+
+            return token.Split('.').Length == 3;
+        }
     }
 }

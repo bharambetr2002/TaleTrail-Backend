@@ -32,13 +32,21 @@ namespace TaleTrail.API.Controllers
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var userBooks = await _userBookService.GetUserReadingListAsync(userId);
+                // Validate user exists in database before proceeding
+                var user = await GetCurrentUserAsync();
+                LogUserAction("GetMyReadingList");
+
+                var userBooks = await _userBookService.GetUserReadingListAsync(user.Id);
                 return Ok(ApiResponse<object>.SuccessResult(userBooks, $"Found {userBooks.Count} books in your reading list"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("🚫 Unauthorized access to reading list: {Error}", ex.Message);
+                return Unauthorized(ApiResponse.ErrorResult(ex.Message));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting reading list for user");
+                _logger.LogError(ex, "❌ Error getting reading list for user: {UserInfo}", GetUserInfoForLogging());
                 return BadRequest(ApiResponse.ErrorResult("Could not retrieve your reading list."));
             }
         }
@@ -51,17 +59,27 @@ namespace TaleTrail.API.Controllers
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var result = await _userBookService.AddOrUpdateUserBookAsync(userId, userBookDto);
+                // Validate user exists in database before proceeding
+                var user = await GetCurrentUserAsync();
+                LogUserAction("AddOrUpdateUserBook", new { BookId = userBookDto.BookId, Status = userBookDto.Status });
+
+                var result = await _userBookService.AddOrUpdateUserBookAsync(user.Id, userBookDto);
+
                 return Ok(ApiResponse<object>.SuccessResult(result, "Book status updated successfully."));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("🚫 Unauthorized access to update book status: {Error}", ex.Message);
+                return Unauthorized(ApiResponse.ErrorResult(ex.Message));
             }
             catch (AppException ex) // Catches business rule violations (e.g., too many in-progress books)
             {
+                _logger.LogInformation("📋 Business rule violation for user {UserInfo}: {Error}", GetUserInfoForLogging(), ex.Message);
                 return BadRequest(ApiResponse.ErrorResult(ex.Message));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding or updating user book");
+                _logger.LogError(ex, "❌ Error adding or updating user book for {UserInfo}", GetUserInfoForLogging());
                 return BadRequest(ApiResponse.ErrorResult("An error occurred while updating your list."));
             }
         }
@@ -75,19 +93,121 @@ namespace TaleTrail.API.Controllers
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var success = await _userBookService.RemoveUserBookAsync(userId, bookId);
+                // Validate user exists in database before proceeding
+                var user = await GetCurrentUserAsync();
+                LogUserAction("RemoveUserBook", new { BookId = bookId });
+
+                var success = await _userBookService.RemoveUserBookAsync(user.Id, bookId);
                 if (!success)
                 {
                     return NotFound(ApiResponse.ErrorResult("The specified book was not found on your list."));
                 }
                 return Ok(ApiResponse.SuccessResult("Book removed from your list successfully."));
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("🚫 Unauthorized access to remove book: {Error}", ex.Message);
+                return Unauthorized(ApiResponse.ErrorResult(ex.Message));
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error removing book {BookId} from user's list", bookId);
+                _logger.LogError(ex, "❌ Error removing book {BookId} from user's list: {UserInfo}", bookId, GetUserInfoForLogging());
                 return BadRequest(ApiResponse.ErrorResult("An error occurred while removing the book."));
             }
         }
+
+        /// <summary>
+        /// Gets reading statistics for the current user
+        /// </summary>
+        [HttpGet("my-stats")]
+        public async Task<IActionResult> GetMyReadingStats()
+        {
+            try
+            {
+                var user = await GetCurrentUserAsync();
+                var userBooks = await _userBookService.GetUserReadingListAsync(user.Id);
+
+                var stats = new
+                {
+                    totalBooks = userBooks.Count,
+                    wannaRead = userBooks.Count(ub => ub.Status == "wanna_read"),
+                    inProgress = userBooks.Count(ub => ub.Status == "in_progress"),
+                    completed = userBooks.Count(ub => ub.Status == "completed"),
+                    dropped = userBooks.Count(ub => ub.Status == "dropped"),
+                    canAddMoreInProgress = userBooks.Count(ub => ub.Status == "in_progress") < 3
+                };
+
+                return Ok(ApiResponse<object>.SuccessResult(stats, "Reading statistics retrieved successfully."));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ApiResponse.ErrorResult(ex.Message));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error getting reading stats for user: {UserInfo}", GetUserInfoForLogging());
+                return BadRequest(ApiResponse.ErrorResult("Could not retrieve reading statistics."));
+            }
+        }
+
+        /// <summary>
+        /// Updates multiple book statuses at once (batch operation)
+        /// </summary>
+        [HttpPatch("batch-update")]
+        public async Task<IActionResult> BatchUpdateUserBooks([FromBody] BatchUpdateUserBooksDTO request)
+        {
+            try
+            {
+                var user = await GetCurrentUserAsync();
+                LogUserAction("BatchUpdateUserBooks", new { Count = request.Updates.Count });
+
+                var results = new List<object>();
+                var errors = new List<string>();
+
+                foreach (var update in request.Updates)
+                {
+                    try
+                    {
+                        var result = await _userBookService.AddOrUpdateUserBookAsync(user.Id, update);
+                        results.Add(new { bookId = update.BookId, status = "success", data = result });
+                    }
+                    catch (AppException ex)
+                    {
+                        errors.Add($"Book {update.BookId}: {ex.Message}");
+                        results.Add(new { bookId = update.BookId, status = "error", error = ex.Message });
+                    }
+                }
+
+                var response = new
+                {
+                    processedCount = request.Updates.Count,
+                    successCount = results.Count(r => ((dynamic)r).status == "success"),
+                    errorCount = errors.Count,
+                    results = results,
+                    errors = errors
+                };
+
+                if (errors.Any())
+                {
+                    return BadRequest(ApiResponse<object>.SuccessResult(response, "Batch update completed with some errors."));
+                }
+
+                return Ok(ApiResponse<object>.SuccessResult(response, "Batch update completed successfully."));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ApiResponse.ErrorResult(ex.Message));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error in batch update for user: {UserInfo}", GetUserInfoForLogging());
+                return BadRequest(ApiResponse.ErrorResult("An error occurred during batch update."));
+            }
+        }
+    }
+
+    public class BatchUpdateUserBooksDTO
+    {
+        public List<UserBookDTO> Updates { get; set; } = new List<UserBookDTO>();
     }
 }

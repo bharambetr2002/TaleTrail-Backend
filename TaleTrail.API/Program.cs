@@ -11,10 +11,20 @@ using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 🔐 Load Environment Variables
+// 🔐 Load Environment Variables FIRST
 DotNetEnv.Env.Load();
 
-// ✅ Configure JSON serialization to handle Supabase models
+// ✅ Validate Critical Environment Variables
+var requiredEnvVars = new[] { "SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_JWT_SECRET" };
+foreach (var envVar in requiredEnvVars)
+{
+    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(envVar)))
+    {
+        throw new InvalidOperationException($"Required environment variable {envVar} is missing");
+    }
+}
+
+// ✅ Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -34,9 +44,14 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "TaleTrail API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "TaleTrail API",
+        Version = "v1",
+        Description = "A comprehensive book tracking and social reading platform API"
+    });
 
-    // ✅ FIXED: Better JWT Authentication configuration for Swagger
+    // ✅ JWT Authentication configuration for Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
     {
         Name = "Authorization",
@@ -44,7 +59,7 @@ builder.Services.AddSwaggerGen(c =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 1safsfsdfdfd\""
+        Description = "Enter your JWT token (without 'Bearer' prefix). Example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -63,35 +78,60 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// ✅ CORS Configuration
+// ✅ CORS Configuration - Wide open for development, restrict in production
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            // TODO: Restrict CORS for production
+            policy.WithOrigins("https://your-frontend-domain.com")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
     });
 });
 
 // ✅ JWT Authentication Configuration
 var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
-if (!string.IsNullOrEmpty(jwtSecret))
-{
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            options.TokenValidationParameters = new TokenValidationParameters
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret!)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+
+        // ✅ Enhanced event handling for debugging
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
             {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
-            };
-        });
-}
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning("JWT Authentication failed: {Error}", context.Exception.Message);
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                var userId = context.Principal?.FindFirst("sub")?.Value;
+                logger.LogDebug("JWT Token validated for user: {UserId}", userId);
+                return Task.CompletedTask;
+            }
+        };
+    });
 
 builder.Services.AddAuthorization();
 
@@ -133,30 +173,81 @@ builder.Services.AddRateLimiter(_ => _
 
 var app = builder.Build();
 
-// ✅ Middleware pipeline
-app.UseCors();
-app.UseRateLimiter();
+// ✅ CRITICAL: CORRECT Middleware pipeline order
+app.UseCors();                                       // 1. CORS first
 
-// ✅ Error Handling Middleware
-app.UseMiddleware<ErrorHandlerMiddleware>();
+// ✅ Error Handling Middleware BEFORE authentication
+app.UseMiddleware<ErrorHandlerMiddleware>();         // 2. Error handling early
 
-// ✅ Authentication & Authorization
-app.UseAuthentication();
-app.UseMiddleware<SupabaseAuthMiddleware>();
-app.UseAuthorization();
+app.UseRateLimiter();                                // 3. Rate limiting
 
-// ✅ Always enable Swagger (in dev or prod)
+// ✅ Request Logging for debugging
+if (app.Environment.IsDevelopment())
+{
+    app.Use(async (context, next) =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+        logger.LogInformation("📨 {Method} {Path} | Auth: {Auth}",
+            context.Request.Method,
+            context.Request.Path,
+            authHeader != null ? $"Bearer {authHeader[..Math.Min(20, authHeader.Length)]}..." : "Missing");
+        await next(context);
+    });
+}
+
+app.UseAuthentication();                             // 4. Authentication
+app.UseMiddleware<SupabaseAuthMiddleware>();         // 5. Custom auth middleware  
+app.UseAuthorization();                              // 6. Authorization last
+
+// ✅ Always enable Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API V1");
-    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
+    c.RoutePrefix = "swagger";
+    c.DocumentTitle = "TaleTrail API Documentation";
 });
 
 app.MapControllers();
-app.MapGet("/", () => "🎉 TaleTrail backend is live!");
 
-// ✅ Health Check Endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+// ✅ Root endpoint
+app.MapGet("/", () => Results.Json(new
+{
+    message = "🎉 TaleTrail backend is live!",
+    version = "v1.0.0",
+    timestamp = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName,
+    endpoints = new
+    {
+        swagger = "/swagger",
+        health = "/health"
+    }
+}));
+
+// ✅ Health Check Endpoint with detailed info
+app.MapGet("/health", () =>
+{
+    var envCheck = new Dictionary<string, bool>
+    {
+        ["SUPABASE_URL"] = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_URL")),
+        ["SUPABASE_KEY"] = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_KEY")),
+        ["SUPABASE_JWT_SECRET"] = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET"))
+    };
+
+    return Results.Json(new
+    {
+        status = "healthy",
+        timestamp = DateTime.UtcNow,
+        environment = app.Environment.EnvironmentName,
+        environmentVariables = envCheck
+    });
+});
+
+// ✅ Enhanced startup logging
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("🚀 TaleTrail API starting up...");
+logger.LogInformation("📍 Environment: {Environment}", app.Environment.EnvironmentName);
+logger.LogInformation("🔗 Swagger UI: {SwaggerUrl}", app.Environment.IsDevelopment() ? "http://localhost:5082/swagger" : "/swagger");
 
 app.Run();
