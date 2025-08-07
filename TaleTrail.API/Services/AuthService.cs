@@ -1,4 +1,4 @@
-// 🔧 SIMPLIFIED AuthService.cs - Zero compilation errors, maximum reliability
+// 🔧 FIXED AuthService.cs - Forces UUID synchronization
 using Supabase.Gotrue;
 using TaleTrail.API.DAO;
 using TaleTrail.API.DTOs.Auth;
@@ -55,7 +55,7 @@ namespace TaleTrail.API.Services
                     throw new AppException("Signup failed. User was not created by Supabase Auth.");
                 }
 
-                _logger.LogInformation("✅ Supabase Auth user created: {UserId}", session.User.Id);
+                _logger.LogInformation("✅ Supabase Auth user created with ID: {SupabaseUserId}", session.User.Id);
             }
             catch (Exception ex)
             {
@@ -63,7 +63,7 @@ namespace TaleTrail.API.Services
                 throw new AppException($"Authentication error: {ex.Message}");
             }
 
-            // 3. ✅ CRITICAL FIX: Immediately create user in our database
+            // 3. ✅ CRITICAL FIX: Use Supabase's UUID directly
             var user = await CreateUserInDatabase(session.User.Id, request.Email, request.FullName, request.Username);
 
             return new UserResponseDTO
@@ -98,7 +98,7 @@ namespace TaleTrail.API.Services
                 throw new AppException("Authentication failed. Please check your credentials.");
             }
 
-            // ✅ CRITICAL FIX: Always ensure user exists in our database
+            // ✅ CRITICAL FIX: Always ensure user exists with Supabase's exact UUID
             var user = await EnsureUserExistsFromSupabaseId(session.User.Id, session.User.Email ?? request.Email);
 
             _logger.LogInformation("✅ Login successful for user: {UserId} ({Username})", user.Id, user.Username);
@@ -114,17 +114,20 @@ namespace TaleTrail.API.Services
         }
 
         /// <summary>
-        /// Creates user in database with proper error handling
+        /// ✅ FIXED: Creates user using Supabase's exact UUID
         /// </summary>
         private async Task<UserModel> CreateUserInDatabase(string supabaseUserId, string email, string fullName, string username)
         {
             try
             {
+                // ✅ CRITICAL: Parse Supabase's UUID and use it directly
                 var userId = Guid.Parse(supabaseUserId);
+
+                _logger.LogInformation("🔗 Creating user in database with Supabase UUID: {UserId}", userId);
 
                 var newUser = new UserModel
                 {
-                    Id = userId,
+                    Id = userId, // ✅ Use Supabase's exact UUID
                     Email = email.ToLowerInvariant(),
                     FullName = fullName.Trim(),
                     Username = username.ToLowerInvariant().Trim(),
@@ -138,7 +141,7 @@ namespace TaleTrail.API.Services
                     throw new AppException("Failed to create user profile in database");
                 }
 
-                _logger.LogInformation("✅ User profile created: {UserId} ({Username})", createdUser.Id, createdUser.Username);
+                _logger.LogInformation("✅ User profile created with synchronized UUID: {UserId} ({Username})", createdUser.Id, createdUser.Username);
                 return createdUser;
             }
             catch (Exception ex)
@@ -152,6 +155,7 @@ namespace TaleTrail.API.Services
                     var existingUser = await _userDao.GetByIdAsync(Guid.Parse(supabaseUserId));
                     if (existingUser != null)
                     {
+                        _logger.LogInformation("✅ Found existing user with synchronized UUID: {UserId}", existingUser.Id);
                         return existingUser;
                     }
                 }
@@ -161,22 +165,24 @@ namespace TaleTrail.API.Services
         }
 
         /// <summary>
-        /// Ensures user exists in database, creates if missing
+        /// ✅ FIXED: Ensures user exists with Supabase's exact UUID
         /// </summary>
         private async Task<UserModel> EnsureUserExistsFromSupabaseId(string supabaseUserId, string email)
         {
             var userId = Guid.Parse(supabaseUserId);
 
-            // Try to get existing user
+            _logger.LogDebug("🔍 Looking for user with Supabase UUID: {UserId}", userId);
+
+            // Try to get existing user with Supabase's UUID
             var existingUser = await _userDao.GetByIdAsync(userId);
             if (existingUser != null)
             {
-                _logger.LogDebug("✅ User already exists in database: {UserId}", userId);
+                _logger.LogDebug("✅ User found with synchronized UUID: {UserId}", userId);
                 return existingUser;
             }
 
-            // User doesn't exist, create with basic info
-            _logger.LogWarning("🔧 User {UserId} missing from database, creating with basic info", userId);
+            // User doesn't exist with Supabase UUID, create it
+            _logger.LogWarning("🔧 User {UserId} missing from database, creating with Supabase UUID", userId);
 
             try
             {
@@ -185,7 +191,7 @@ namespace TaleTrail.API.Services
 
                 var newUser = new UserModel
                 {
-                    Id = userId,
+                    Id = userId, // ✅ CRITICAL: Use Supabase's exact UUID
                     Email = email.ToLowerInvariant(),
                     FullName = fullName,
                     Username = username,
@@ -199,7 +205,7 @@ namespace TaleTrail.API.Services
                     throw new AppException("Failed to create missing user profile");
                 }
 
-                _logger.LogInformation("✅ Auto-created missing user: {UserId} ({Username})", createdUser.Id, createdUser.Username);
+                _logger.LogInformation("✅ Auto-created user with synchronized UUID: {UserId} ({Username})", createdUser.Id, createdUser.Username);
                 return createdUser;
             }
             catch (Exception ex)
@@ -271,7 +277,7 @@ namespace TaleTrail.API.Services
             }
         }
 
-        // ✅ Keep existing methods for backward compatibility
+        // Keep existing methods for backward compatibility
         public async Task<bool> ValidateUserCredentialsAsync(string email, string password)
         {
             try
