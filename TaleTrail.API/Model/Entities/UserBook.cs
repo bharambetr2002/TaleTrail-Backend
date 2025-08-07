@@ -1,15 +1,8 @@
 using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
+using TaleTrail.API.Model.Enums;
 
-namespace TaleTrail.API.Model;
-
-public enum ReadingStatus
-{
-    ToRead,
-    InProgress,
-    Completed,
-    Dropped
-}
+namespace TaleTrail.API.Model.Entities;
 
 [Table("user_books")]
 public class UserBook : BaseModel
