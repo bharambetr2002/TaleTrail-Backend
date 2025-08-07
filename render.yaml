@@ -1,23 +1,17 @@
 services:
   - type: web
     name: taletrail-api
-    env: docker
-    dockerfilePath: ./TaleTrail.API/Dockerfile
-    dockerContext: .
+    env: dotnet
+    buildCommand: |
+      cd TaleTrail.API
+      dotnet restore
+      dotnet publish -c Release -o publish
+    startCommand: |
+      cd TaleTrail.API/publish
+      dotnet TaleTrail.API.dll
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:10000
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: SUPABASE_JWT_SECRET
-        sync: false
-      - key: ALLOWED_ORIGINS
-        value: https://your-frontend-domain.com
     healthCheckPath: /health
-    numInstances: 1
-    plan: free
-    region: oregon

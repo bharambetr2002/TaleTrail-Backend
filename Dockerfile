@@ -1,52 +1,50 @@
-# Dockerfile (in repository root)
-# Use the official .NET 8 SDK image for building
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /app
+# Multi-stage build optimized for Render
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 
-# Copy csproj and restore dependencies
-COPY TaleTrail.API/TaleTrail.API.csproj TaleTrail.API/
-RUN dotnet restore TaleTrail.API/TaleTrail.API.csproj
+# Set working directory
+WORKDIR /src
 
-# Copy the rest of the application code
+# Copy project file and restore dependencies
+COPY ["TaleTrail.API/TaleTrail.API.csproj", "TaleTrail.API/"]
+RUN dotnet restore "TaleTrail.API/TaleTrail.API.csproj" --disable-parallel
+
+# Copy source code and build
 COPY . .
+WORKDIR "/src/TaleTrail.API"
+RUN dotnet build "TaleTrail.API.csproj" -c Release -o /app/build --no-restore
 
-# Build the application
-WORKDIR /app/TaleTrail.API
-RUN dotnet build TaleTrail.API.csproj -c Release -o /app/build
+# Publish
+RUN dotnet publish "TaleTrail.API.csproj" -c Release -o /app/publish --no-restore --no-build
 
-# Publish the application
-RUN dotnet publish TaleTrail.API.csproj -c Release -o /app/publish
-
-# Use the official .NET 8 runtime image for the final stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
-WORKDIR /app
+# Final stage - runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
 
 # Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl
 
-# Create a non-root user
-RUN addgroup --system --gid 1001 dotnetuser
-RUN adduser --system --uid 1001 --gid 1001 dotnetuser
+# Create app directory and user
+WORKDIR /app
+RUN addgroup -g 1001 -S dotnetuser && \
+    adduser -S dotnetuser -u 1001 -G dotnetuser
 
-# Copy the published application
+# Copy published app
 COPY --from=build /app/publish .
 
-# Create logs directory and set permissions
-RUN mkdir -p /app/logs && chown -R dotnetuser:dotnetuser /app
+# Create logs directory and set ownership
+RUN mkdir -p /app/logs && \
+    chown -R dotnetuser:dotnetuser /app
 
 # Switch to non-root user
 USER dotnetuser
 
-# Expose the port the app runs on
-EXPOSE 8080
-
-# Set environment variables for Render
-ENV ASPNETCORE_URLS=http://+:10000
+# Configure environment
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://+:10000
+EXPOSE 10000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:10000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:10000/health || exit 1
 
 # Start the application
 ENTRYPOINT ["dotnet", "TaleTrail.API.dll"]
