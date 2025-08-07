@@ -13,18 +13,39 @@ DotNetEnv.Env.Load();
 // Add services to the container.
 builder.Services.AddControllers();
 
-// --- NEW: Register all your DAOs and Services ---
+// Register SupabaseService (Singleton)
 builder.Services.AddSingleton<SupabaseService>();
-builder.Services.AddScoped<BookDao>();
-builder.Services.AddScoped<BookService>();
-// We will add more DAOs and services here as we create them
 
-// --- NEW: Add and Configure JWT Authentication ---
+// Register all DAOs (Scoped)
+builder.Services.AddScoped<AuthorDao>();
+builder.Services.AddScoped<BlogDao>();
+builder.Services.AddScoped<BlogLikeDao>();
+builder.Services.AddScoped<BookDao>();
+builder.Services.AddScoped<PublisherDao>();
+builder.Services.AddScoped<ReviewDao>();
+builder.Services.AddScoped<UserBookDao>();
+builder.Services.AddScoped<UserDao>();
+
+// Register all Services (Scoped)
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthorService>();
+builder.Services.AddScoped<BlogService>();
+builder.Services.AddScoped<BookService>();
+builder.Services.AddScoped<PublisherService>();
+builder.Services.AddScoped<ReviewService>();
+builder.Services.AddScoped<UserBookService>();
+builder.Services.AddScoped<UserService>();
+
+// Register DataSeeder
+builder.Services.AddScoped<DataSeeder>();
+
+// Configure JWT Authentication
 var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
 if (string.IsNullOrEmpty(jwtSecret))
 {
-    throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing.");
+    throw new InvalidOperationException("SUPABASE_JWT_SECRET environment variable is missing.");
 }
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -34,29 +55,34 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
             ValidateIssuer = false,
             ValidateAudience = false,
+            ClockSkew = TimeSpan.Zero // Reduces the default 5 minute clock skew
         };
     });
 
-builder.Services.AddScoped<DataSeeder>();
+// Configure Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    // --- NEW: Configure Swagger to use Bearer token ---
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
-        Description = "Please enter a valid token",
+        Description = "Please enter a valid JWT token",
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
         BearerFormat = "JWT",
         Scheme = "Bearer"
     });
+
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
             },
             new string[]{}
         }
@@ -65,25 +91,39 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API V1");
+        c.RoutePrefix = string.Empty; // Makes Swagger available at the root
+    });
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
-// --- NEW: Add Authentication middleware ---
-// This must be between UseHttpsRedirection and UseAuthorization
+// Authentication & Authorization (order matters!)
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
+// Seed the database on startup
 using (var scope = app.Services.CreateScope())
 {
-    var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
-    await seeder.SeedAsync();
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+        await seeder.SeedAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+        // Don't throw - let the app start even if seeding fails
+    }
 }
 
 app.Run();

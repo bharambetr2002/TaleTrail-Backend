@@ -1,6 +1,6 @@
 using TaleTrail.API.Model;
 using TaleTrail.API.Services;
-using Postgrest.Responses;
+using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Data;
 
@@ -19,29 +19,31 @@ public class DataSeeder
     {
         try
         {
-            var existingAuthors = await _supabaseService.Supabase.From<Author>().Get();
-            if (existingAuthors.Models.Count > 0)
+            _logger.LogInformation("🌱 Starting database seeding...");
+
+            // Check if already seeded
+            var existingBooks = await _supabaseService.Supabase.From<Book>().Get();
+            if (existingBooks.Models.Any())
             {
-                _logger.LogInformation("📦 Database already seeded.");
+                _logger.LogInformation("✅ Database already seeded. Skipping.");
                 return;
             }
 
-            _logger.LogInformation("🌱 Starting database seeding...");
-
             var authors = await SeedAuthorsAsync();
-            _logger.LogInformation($"✅ Seeded {authors.Count} authors.");
+            _logger.LogInformation($"✅ Seeded {authors.Count} authors");
 
             var publishers = await SeedPublishersAsync();
-            _logger.LogInformation($"✅ Seeded {publishers.Count} publishers.");
+            _logger.LogInformation($"✅ Seeded {publishers.Count} publishers");
 
             var books = await SeedBooksAsync(authors, publishers);
-            _logger.LogInformation($"✅ Seeded {books.Count} books.");
+            _logger.LogInformation($"✅ Seeded {books.Count} books");
 
-            _logger.LogInformation("🎉 Database seeding completed.");
+            _logger.LogInformation("🎉 Database seeding completed successfully.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Seeding failed: {Message}", ex.Message);
+            _logger.LogError("❌ Database seeding failed: {0}", ex.Message);
+            throw;
         }
     }
 
@@ -49,32 +51,37 @@ public class DataSeeder
     {
         var authors = new List<Author>
         {
-            new() { Id = Guid.NewGuid(), Name = "J.K. Rowling", Bio = "British author, best known for Harry Potter.", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { Id = Guid.NewGuid(), Name = "George R.R. Martin", Bio = "Author of A Song of Ice and Fire.", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            new() { Name = "George Orwell" },
+            new() { Name = "J.K. Rowling" },
+            new() { Name = "Haruki Murakami" }
         };
 
+        var inserted = new List<Author>();
         foreach (var author in authors)
         {
-            await _supabaseService.Supabase.From<Author>().Insert(author);
+            var response = await _supabaseService.Supabase.From<Author>().Insert(author);
+            inserted.Add(response.Models.First());
         }
 
-        return authors;
+        return inserted;
     }
 
     private async Task<List<Publisher>> SeedPublishersAsync()
     {
         var publishers = new List<Publisher>
         {
-            new() { Id = Guid.NewGuid(), Name = "Bloomsbury", Address = "London, UK", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new() { Id = Guid.NewGuid(), Name = "Bantam Books", Address = "New York, USA", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            new() { Name = "Penguin Books" },
+            new() { Name = "Bloomsbury" }
         };
 
+        var inserted = new List<Publisher>();
         foreach (var publisher in publishers)
         {
-            await _supabaseService.Supabase.From<Publisher>().Insert(publisher);
+            var response = await _supabaseService.Supabase.From<Publisher>().Insert(publisher);
+            inserted.Add(response.Models.First());
         }
 
-        return publishers;
+        return inserted;
     }
 
     private async Task<List<Book>> SeedBooksAsync(List<Author> authors, List<Publisher> publishers)
@@ -83,35 +90,40 @@ public class DataSeeder
         {
             new()
             {
-                Id = Guid.NewGuid(),
-                Title = "Harry Potter and the Philosopher's Stone",
-                Description = "Fantasy novel about a young wizard.",
+                Title = "1984",
+                Description = "A dystopian novel.",
                 Language = "English",
-                CoverImageUrl = null,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
+                PublicationYear = 1949,
                 AuthorId = authors[0].Id,
                 PublisherId = publishers[0].Id
             },
             new()
             {
-                Id = Guid.NewGuid(),
-                Title = "A Game of Thrones",
-                Description = "First book in A Song of Ice and Fire series.",
+                Title = "Harry Potter and the Sorcerer's Stone",
+                Description = "Fantasy novel for young readers.",
                 Language = "English",
-                CoverImageUrl = null,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
+                PublicationYear = 1997,
                 AuthorId = authors[1].Id,
                 PublisherId = publishers[1].Id
+            },
+            new()
+            {
+                Title = "Kafka on the Shore",
+                Description = "Magical realism and surrealist elements.",
+                Language = "Japanese",
+                PublicationYear = 2002,
+                AuthorId = authors[2].Id,
+                PublisherId = publishers[0].Id
             }
         };
 
+        var inserted = new List<Book>();
         foreach (var book in books)
         {
-            await _supabaseService.Supabase.From<Book>().Insert(book);
+            var response = await _supabaseService.Supabase.From<Book>().Insert(book);
+            inserted.Add(response.Models.First());
         }
 
-        return books;
+        return inserted;
     }
 }

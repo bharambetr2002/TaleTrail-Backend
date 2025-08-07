@@ -15,15 +15,24 @@ public class Book : BaseModel
     [Column("description")]
     public string? Description { get; set; }
 
-    [Column("cover_url")]
-    public string? CoverUrl { get; set; }
+    [Column("language")]
+    public string? Language { get; set; }
+
+    [Column("cover_image_url")]
+    public string? CoverImageUrl { get; set; }
 
     [Column("publication_year")]
     public int? PublicationYear { get; set; }
+
+    [Column("author_id")]
+    public Guid? AuthorId { get; set; }
 
     [Column("publisher_id")]
     public Guid? PublisherId { get; set; }
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
+
+    [Column("updated_at")]
+    public DateTime UpdatedAt { get; set; }
 }

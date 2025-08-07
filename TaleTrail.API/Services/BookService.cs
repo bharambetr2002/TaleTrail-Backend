@@ -1,4 +1,3 @@
-// File: Services/BookService.cs
 using TaleTrail.API.DAO;
 using TaleTrail.API.Model;
 
@@ -21,5 +20,13 @@ public class BookService
     public async Task<Book?> GetBookByIdAsync(Guid id)
     {
         return await _bookDao.GetByIdAsync(id);
+    }
+
+    public async Task<List<Book>> SearchBooksAsync(string searchTerm)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return await GetAllBooksAsync();
+
+        return await _bookDao.SearchByTitleAsync(searchTerm);
     }
 }

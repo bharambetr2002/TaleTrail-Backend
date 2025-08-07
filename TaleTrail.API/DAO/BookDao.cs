@@ -1,5 +1,3 @@
-// File: DAO/BookDao.cs
-using Postgrest;
 using TaleTrail.API.Model;
 using TaleTrail.API.Services;
 
@@ -28,5 +26,21 @@ public class BookDao
             .Get();
 
         return response.Models.FirstOrDefault();
+    }
+
+    public async Task<List<Book>> SearchByTitleAsync(string searchTerm)
+    {
+        var response = await _supabaseService.Supabase
+            .From<Book>()
+            .Where(b => b.Title.Contains(searchTerm))
+            .Get();
+
+        return response.Models;
+    }
+
+    public async Task<Book> CreateAsync(Book book)
+    {
+        var response = await _supabaseService.Supabase.From<Book>().Insert(book);
+        return response.Models.First();
     }
 }

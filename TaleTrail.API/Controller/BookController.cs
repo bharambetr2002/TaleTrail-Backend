@@ -17,9 +17,19 @@ public class BookController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] string? search = null)
     {
-        var books = await _bookService.GetAllBooksAsync();
+        List<Book> books;
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            books = await _bookService.SearchBooksAsync(search);
+        }
+        else
+        {
+            books = await _bookService.GetAllBooksAsync();
+        }
+
         return Ok(ApiResponse<List<Book>>.SuccessResponse("Fetched all books", books));
     }
 
