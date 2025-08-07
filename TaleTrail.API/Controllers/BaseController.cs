@@ -1,19 +1,185 @@
+// 🔧 COMPLETE BaseController.cs - Auto-sync users on each request
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
 using TaleTrail.API.Services;
 using TaleTrail.API.Models;
 using System.Threading.Tasks;
+using TaleTrail.API.DAO;
 
 namespace TaleTrail.API.Controllers
 {
     public abstract class BaseController : ControllerBase
     {
         /// <summary>
-        /// Gets the authenticated user's ID from the JWT claims.
+        /// ✅ UPDATED: Gets current user with automatic sync if missing
+        /// This ensures ANY authenticated request creates the user if they don't exist
         /// </summary>
-        /// <returns>The user's GUID.</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the user ID claim is not found.</exception>
+        protected async Task<User> GetCurrentUserAsync()
+        {
+            var userId = GetCurrentUserId();
+            var userService = HttpContext.RequestServices.GetRequiredService<UserService>();
+            var logger = HttpContext.RequestServices.GetRequiredService<ILogger<BaseController>>();
+
+            // 1. Try to get user from database
+            var user = await userService.GetUserByIdAsync(userId);
+            if (user != null)
+            {
+                return user; // ✅ User exists, return immediately
+            }
+
+            // 2. ✅ CRITICAL FIX: User missing from database, but JWT is valid
+            // This means Supabase Auth user exists but our database record doesn't
+            logger.LogWarning("🔧 User {UserId} authenticated but missing from database. Auto-creating...", userId);
+
+            try
+            {
+                // Extract user info from JWT claims
+                var email = GetCurrentUserEmail();
+
+                // Create user profile from JWT claims
+                user = await CreateUserFromJwtClaims(userId, email);
+
+                if (user != null)
+                {
+                    logger.LogInformation("✅ Successfully auto-created user: {UserId} ({Username})", user.Id, user.Username);
+                    return user;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "❌ Failed to auto-create user {UserId} from JWT", userId);
+            }
+
+            // 3. If all else fails, throw clear error
+            throw new UnauthorizedAccessException("User profile not found and could not be auto-created. Please re-login or contact support.");
+        }
+
+        /// <summary>
+        /// Creates user profile from JWT claims when database record is missing
+        /// </summary>
+        private async Task<User?> CreateUserFromJwtClaims(Guid userId, string email)
+        {
+            var userDao = HttpContext.RequestServices.GetRequiredService<UserDao>();
+            var logger = HttpContext.RequestServices.GetRequiredService<ILogger<BaseController>>();
+
+            try
+            {
+                // Generate username from email
+                var username = await GenerateUsernameFromEmail(email);
+
+                var newUser = new User
+                {
+                    Id = userId, // ✅ Use Supabase ID from JWT
+                    Email = email.ToLowerInvariant(),
+                    FullName = ExtractFullNameFromEmail(email),
+                    Username = username,
+                    CreatedAt = DateTime.UtcNow,
+                    Role = "user"
+                };
+
+                var createdUser = await userDao.AddAsync(newUser);
+
+                if (createdUser != null)
+                {
+                    logger.LogInformation("✅ Auto-created user from JWT: {UserId} ({Username})", createdUser.Id, createdUser.Username);
+                }
+
+                return createdUser;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "❌ Failed to create user from JWT claims");
+
+                // Handle race conditions - another request may have created the user
+                if (ex.Message.Contains("duplicate key") || ex.Message.Contains("23505"))
+                {
+                    logger.LogInformation("🔄 Race condition detected, attempting to retrieve existing user");
+                    try
+                    {
+                        var existingUser = await userDao.GetByIdAsync(userId);
+                        if (existingUser != null)
+                        {
+                            logger.LogInformation("✅ Found user created by concurrent request: {UserId}", userId);
+                            return existingUser;
+                        }
+                    }
+                    catch (Exception retrieveEx)
+                    {
+                        logger.LogError(retrieveEx, "❌ Failed to retrieve user after race condition");
+                    }
+                }
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Generates unique username from email
+        /// </summary>
+        private async Task<string> GenerateUsernameFromEmail(string email)
+        {
+            var userDao = HttpContext.RequestServices.GetRequiredService<UserDao>();
+
+            var baseUsername = CleanUsername(email.Split('@')[0]);
+            var counter = 1;
+            var candidateUsername = baseUsername;
+
+            while (await userDao.UsernameExistsAsync(candidateUsername))
+            {
+                candidateUsername = $"{baseUsername}_{counter}";
+                counter++;
+
+                if (counter > 1000)
+                {
+                    candidateUsername = $"user_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                    break;
+                }
+            }
+
+            return candidateUsername;
+        }
+
+        /// <summary>
+        /// Cleans username format
+        /// </summary>
+        private string CleanUsername(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "user";
+
+            var cleaned = System.Text.RegularExpressions.Regex.Replace(input.ToLowerInvariant(), @"[^a-z0-9_]", "");
+
+            if (cleaned.Length == 0 || (!char.IsLetter(cleaned[0]) && cleaned[0] != '_'))
+                cleaned = "u" + cleaned;
+
+            if (cleaned.Length < 3)
+                cleaned = cleaned.PadRight(3, '1');
+
+            if (cleaned.Length > 50)
+                cleaned = cleaned.Substring(0, 50);
+
+            return cleaned;
+        }
+
+        /// <summary>
+        /// Extracts a reasonable full name from email
+        /// </summary>
+        private string ExtractFullNameFromEmail(string email)
+        {
+            try
+            {
+                var localPart = email.Split('@')[0];
+                // Convert dots/underscores to spaces and capitalize
+                var name = localPart.Replace(".", " ").Replace("_", " ");
+                return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);
+            }
+            catch
+            {
+                return "User";
+            }
+        }
+
+        // ✅ Existing helper methods remain the same
         protected Guid GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -25,11 +191,6 @@ namespace TaleTrail.API.Controllers
             throw new UnauthorizedAccessException("User not authenticated or User ID not found in token.");
         }
 
-        /// <summary>
-        /// Gets the authenticated user's role from the JWT claims.
-        /// </summary>
-        /// <returns>The user's role string (e.g., "user" or "admin").</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the role claim is not found.</exception>
         protected string GetCurrentUserRole()
         {
             var roleClaim = User.FindFirst(ClaimTypes.Role);
@@ -41,11 +202,6 @@ namespace TaleTrail.API.Controllers
             throw new UnauthorizedAccessException("Role not found in token.");
         }
 
-        /// <summary>
-        /// Gets the authenticated user's email from the JWT claims.
-        /// </summary>
-        /// <returns>The user's email.</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the email claim is not found.</exception>
         protected string GetCurrentUserEmail()
         {
             var emailClaim = User.FindFirst(ClaimTypes.Email);
@@ -57,36 +213,6 @@ namespace TaleTrail.API.Controllers
             throw new UnauthorizedAccessException("Email not found in token.");
         }
 
-        /// <summary>
-        /// Gets the current user's full profile, ensuring they exist in the database.
-        /// This method validates that the JWT user actually exists in your users table.
-        /// </summary>
-        /// <returns>The user's profile from the database.</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if user doesn't exist in database.</exception>
-        protected async Task<User> GetCurrentUserAsync()
-        {
-            var userId = GetCurrentUserId();
-            var userService = HttpContext.RequestServices.GetRequiredService<UserService>();
-
-            var user = await userService.GetUserByIdAsync(userId);
-            if (user == null)
-            {
-                var logger = HttpContext.RequestServices.GetRequiredService<ILogger<BaseController>>();
-                logger.LogWarning("🚨 JWT token valid but user {UserId} not found in database. This suggests a sync issue.", userId);
-
-                throw new UnauthorizedAccessException("User profile not found. Please complete your account setup or contact support.");
-            }
-
-            return user;
-        }
-
-        /// <summary>
-        /// Validates that the current user exists and optionally checks their role.
-        /// Use this in controllers that need to ensure database user existence.
-        /// </summary>
-        /// <param name="requiredRole">Optional role requirement (e.g., "admin")</param>
-        /// <returns>The validated user profile</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if user doesn't exist or lacks required role.</exception>
         protected async Task<User> ValidateCurrentUserAsync(string? requiredRole = null)
         {
             var user = await GetCurrentUserAsync();
@@ -103,10 +229,6 @@ namespace TaleTrail.API.Controllers
             return user;
         }
 
-        /// <summary>
-        /// Helper method to check if the current user is an admin without throwing exceptions.
-        /// </summary>
-        /// <returns>True if user is admin, false otherwise</returns>
         protected bool IsCurrentUserAdmin()
         {
             try
@@ -120,11 +242,6 @@ namespace TaleTrail.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Helper method to log user actions for debugging and security auditing.
-        /// </summary>
-        /// <param name="action">The action being performed</param>
-        /// <param name="details">Optional additional details</param>
         protected void LogUserAction(string action, object? details = null)
         {
             try
@@ -138,16 +255,11 @@ namespace TaleTrail.API.Controllers
             }
             catch (Exception ex)
             {
-                // Don't let logging failures break the request
                 var logger = HttpContext.RequestServices.GetRequiredService<ILogger<BaseController>>();
                 logger.LogWarning("⚠️ Failed to log user action: {Error}", ex.Message);
             }
         }
 
-        /// <summary>
-        /// Helper method to get user info for debugging without throwing exceptions.
-        /// </summary>
-        /// <returns>Safe user info for logging</returns>
         protected string GetUserInfoForLogging()
         {
             try
@@ -161,5 +273,5 @@ namespace TaleTrail.API.Controllers
                 return "User: [Anonymous/Invalid Token]";
             }
         }
-    }
-}
+    } // ✅ End of BaseController class
+} // ✅ End of namespace
