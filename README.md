@@ -1,131 +1,415 @@
-📚 TaleTrail API
-A modern, streamlined book tracking and social platform built with ASP.NET Core 8 and Supabase. TaleTrail allows users to manage their reading journey, write blogs, review books, and share their progress with a public profile.
+# 📚 TaleTrail API
 
-🚀 Features
-Core Functionality
-User Authentication - Secure signup/login with Supabase Auth and JWTs.
+> A clean, simple book tracking API built with .NET 8 and Supabase
 
-Public User Profiles - Shareable profiles with reading stats (/profile/{username}).
+[![.NET](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-green)](https://supabase.com)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-blue)](https://www.docker.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Admin Content Management - Admins manage the global catalog of books, authors, and publishers.
+TaleTrail is a modern book tracking API that allows users to manage their reading lists, write reviews, create blog posts, and track their reading progress. Built with simplicity and beginner-friendliness in mind.
 
-Personal Blogs - Users can write, edit, and delete their own blog posts.
+## ✨ Features
 
-Book Reviews - Users can rate (1-5 stars) and write reviews for books.
+- 🔐 **Authentication**: Secure user registration and login with JWT
+- 📖 **Book Management**: Browse and search books with author and publisher information
+- 📚 **Reading Lists**: Track books with different statuses (ToRead, InProgress, Completed, Dropped)
+- ⭐ **Reviews**: Write and manage book reviews with ratings
+- 📝 **Blog Posts**: Create and share blog posts about books
+- 👤 **User Profiles**: Manage user profiles and public pages
+- 🏥 **Health Checks**: Built-in health monitoring
+- 📊 **Swagger Documentation**: Interactive API documentation
 
-Personal Reading Lists - Track books with statuses: wanna_read, in_progress (max 3), completed, dropped.
+## 🚀 Quick Start
 
-Technical Features
-RESTful API with Swagger/OpenAPI documentation.
+### Prerequisites
 
-Layered Architecture - Controllers, Services, and DAOs for clean separation of concerns.
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Docker](https://www.docker.com/get-started) (optional)
+- [Supabase Account](https://supabase.com)
 
-Role-Based Access Control - Secure endpoints for regular users and admins.
+### 🏃‍♂️ Running Locally
 
-Custom Middleware for error handling and JWT validation.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/taletrail-api.git
+   cd taletrail-api
+   ```
 
-CORS Support for seamless frontend integration.
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Supabase credentials
+   ```
 
-Environment Configuration with .env files for local development.
+3. **Run the application**
+   ```bash
+   cd TaleTrail.API
+   dotnet restore
+   dotnet run
+   ```
 
-Health Check endpoint for monitoring.
+4. **Open your browser**
+   - API: http://localhost:5198
+   - Swagger: http://localhost:5198
 
-🛠️ Tech Stack
-Framework: .NET 8
+### 🐳 Running with Docker
 
-Database: Supabase (PostgreSQL)
+1. **Using Docker Compose (Recommended)**
+   ```bash
+   docker-compose up -d
+   ```
 
-Authentication: Supabase Auth (JWT-based)
+2. **Using Docker directly**
+   ```bash
+   docker build -t taletrail-api -f TaleTrail.API/Dockerfile .
+   docker run -p 8080:8080 taletrail-api
+   ```
 
-Deployment: Docker, Render
+## 📚 API Documentation
 
-Documentation: Swagger/OpenAPI
+### Base URL
+- Development: `http://localhost:5198`
+- Production: `https://your-render-app.onrender.com`
 
-📁 Project Structure
+### 🔑 Authentication Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/signup` | Register new user |
+| POST | `/api/auth/login` | Login user |
+
+### 📖 Book Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/book` | Get all books (with search) |
+| GET | `/api/book/{id}` | Get book by ID |
+| GET | `/api/book/by-author/{authorId}` | Get books by author |
+
+### 📚 User Book Endpoints (Protected)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/userbook/my-books` | Get user's books |
+| POST | `/api/userbook` | Add book to user's list |
+| PUT | `/api/userbook/{bookId}` | Update book status |
+| DELETE | `/api/userbook/{bookId}` | Remove book from list |
+
+### ⭐ Review Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/review/book/{bookId}` | Get reviews for a book |
+| POST | `/api/review` | Create review 🔒 |
+| PUT | `/api/review/{id}` | Update review 🔒 |
+| DELETE | `/api/review/{id}` | Delete review 🔒 |
+
+### 📝 Blog Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/blog` | Get all blogs |
+| GET | `/api/blog/{id}` | Get blog by ID |
+| POST | `/api/blog` | Create blog post 🔒 |
+| PUT | `/api/blog/{id}` | Update blog post 🔒 |
+| DELETE | `/api/blog/{id}` | Delete blog post 🔒 |
+
+*🔒 = Requires authentication*
+
+For detailed API documentation, visit `/swagger` when the application is running.
+
+## 🏗️ Architecture
+
+```
 TaleTrail.API/
-├── Controllers/    # API Controllers (e.g., Books, Profile, UserBook)
-├── Services/       # Business Logic Layer
-├── DAO/            # Data Access Objects (interacts with Supabase)
-├── DTOs/           # Data Transfer Objects (API contracts)
-├── Models/         # Database Entity Models
-├── Middleware/     # Custom Middleware (Errors, Auth)
-├── Exceptions/     # Custom Exception Classes
-└── Helpers/        # Utility Classes (e.g., ApiResponse)
+├── Controllers/         # API endpoints
+├── Services/           # Business logic
+├── DAO/               # Data access layer
+├── Model/             # Entity models and DTOs
+├── Middleware/        # Custom middleware
+├── Extensions/        # Extension methods
+└── Data/             # Database seeding
+```
 
-🚦 Getting Started
-Prerequisites
-.NET 8 SDK
+## 🔧 Configuration
 
-A Supabase Account
+### Environment Variables
 
-Docker (for local testing)
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SUPABASE_URL` | Your Supabase project URL | ✅ |
+| `SUPABASE_KEY` | Your Supabase anon key | ✅ |
+| `SUPABASE_JWT_SECRET` | Your Supabase JWT secret | ✅ |
+| `ALLOWED_ORIGINS` | CORS allowed origins | ❌ |
+| `ASPNETCORE_ENVIRONMENT` | Environment (Development/Production) | ❌ |
 
-Installation
-Clone the repository
+### Database Schema
 
-git clone <repository-url>
-cd TaleTrail-Backend
+The application uses the following main entities:
+- **Users**: User profiles and authentication
+- **Books**: Book information with authors and publishers
+- **UserBooks**: User's reading lists and progress
+- **Reviews**: Book reviews and ratings
+- **Blogs**: User blog posts
+- **Authors**: Book authors
+- **Publishers**: Book publishers
 
-Create your environment file
+## 🚀 Deployment
 
-In the TaleTrail.API directory, create a file named .env.
+### Deploy to Render
 
-Add your Supabase credentials to this file:
+1. **Push to GitHub**: Ensure your code is in a GitHub repository
+2. **Connect to Render**: Link your GitHub repo to Render
+3. **Set Environment Variables**: Configure your Supabase credentials in Render
+4. **Deploy**: Render will automatically build and deploy using Docker
 
-SUPABASE_URL=your-supabase-url
-SUPABASE_KEY=your-supabase-service-role-key
-SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+### Deploy to Other Platforms
 
-Restore dependencies
+The application is containerized and can be deployed to:
+- **Heroku**: Using Docker
+- **Railway**: Using Docker
+- **DigitalOcean App Platform**: Using Docker
+- **AWS ECS/Fargate**: Using Docker
+- **Google Cloud Run**: Using Docker
 
-dotnet restore
+## 🧪 Testing
 
-Run the application
+```bash
+# Run all tests
+dotnet test
 
-cd TaleTrail.API
-dotnet run
+# Run with coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
 
-Access the application
+## 🤝 Contributing
 
-API: https://localhost:7218 (or your configured port)
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-Swagger: https://localhost:7218/swagger
+## 📝 License
 
-Health Check: https://localhost:7218/health
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-📖 API Documentation
-A full list of endpoints is available via the Swagger UI.
+## 🆘 Support
 
-Key Endpoints
-POST /api/auth/signup - User registration.
+- 📖 [Documentation](./docs/)
+- 🐛 [Issues](https://github.com/yourusername/taletrail-api/issues)
+- 💬 [Discussions](https://github.com/yourusername/taletrail-api/discussions)
 
-POST /api/auth/login - User login.
+## 🙏 Acknowledgments
 
-GET /api/profile/{username} - Public: Get a user's shareable profile.
+- [.NET Team](https://github.com/dotnet) for the amazing framework
+- [Supabase](https://supabase.com) for the backend infrastructure
+- [Swagger](https://swagger.io) for API documentation
+- Community contributors and supporters
 
-GET /api/user/profile/my-profile - Protected: Get the logged-in user's own profile.
+---
 
-PUT /api/user/profile/my-profile - Protected: Update the logged-in user's profile.
+<p align="center">Made with ❤️ for book lovers</p># 📚 TaleTrail API
 
-GET /api/book - Get all books (supports ?search=query).
+> A clean, simple book tracking API built with .NET 8 and Supabase
 
-POST /api/book - Admin: Create a new book.
+[![.NET](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-green)](https://supabase.com)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-blue)](https://www.docker.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GET /api/user-book/my-list - Protected: Get the user's reading list.
+TaleTrail is a modern book tracking API that allows users to manage their reading lists, write reviews, create blog posts, and track their reading progress. Built with simplicity and beginner-friendliness in mind.
 
-POST /api/user-book - Protected: Add or update a book on the user's list.
+## ✨ Features
 
-🚀 Deployment
-This project is configured for easy deployment to Render using Docker.
+- 🔐 **Authentication**: Secure user registration and login with JWT
+- 📖 **Book Management**: Browse and search books with author and publisher information
+- 📚 **Reading Lists**: Track books with different statuses (ToRead, InProgress, Completed, Dropped)
+- ⭐ **Reviews**: Write and manage book reviews with ratings
+- 📝 **Blog Posts**: Create and share blog posts about books
+- 👤 **User Profiles**: Manage user profiles and public pages
+- 🏥 **Health Checks**: Built-in health monitoring
+- 📊 **Swagger Documentation**: Interactive API documentation
 
-Push your code to a GitHub repository.
+## 🚀 Quick Start
 
-Create a new "Web Service" on Render and connect it to your repository.
+### Prerequisites
 
-Set the environment to "Docker".
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Docker](https://www.docker.com/get-started) (optional)
+- [Supabase Account](https://supabase.com)
 
-Add your SUPABASE_URL, SUPABASE_KEY, and SUPABASE_JWT_SECRET as environment variables in the Render dashboard.
+### 🏃‍♂️ Running Locally
 
-Render will automatically build the Docker image and deploy your API.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/taletrail-api.git
+   cd taletrail-api
+   ```
 
-Made with ❤️ for book lovers everywhere!
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Supabase credentials
+   ```
+
+3. **Run the application**
+   ```bash
+   cd TaleTrail.API
+   dotnet restore
+   dotnet run
+   ```
+
+4. **Open your browser**
+   - API: http://localhost:5198
+   - Swagger: http://localhost:5198
+
+### 🐳 Running with Docker
+
+1. **Using Docker Compose (Recommended)**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Using Docker directly**
+   ```bash
+   docker build -t taletrail-api -f TaleTrail.API/Dockerfile .
+   docker run -p 8080:8080 taletrail-api
+   ```
+
+## 📚 API Documentation
+
+### Base URL
+- Development: `http://localhost:5198`
+- Production: `https://your-render-app.onrender.com`
+
+### 🔑 Authentication Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/signup` | Register new user |
+| POST | `/api/auth/login` | Login user |
+
+### 📖 Book Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/book` | Get all books (with search) |
+| GET | `/api/book/{id}` | Get book by ID |
+| GET | `/api/book/by-author/{authorId}` | Get books by author |
+
+### 📚 User Book Endpoints (Protected)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/userbook/my-books` | Get user's books |
+| POST | `/api/userbook` | Add book to user's list |
+| PUT | `/api/userbook/{bookId}` | Update book status |
+| DELETE | `/api/userbook/{bookId}` | Remove book from list |
+
+### ⭐ Review Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/review/book/{bookId}` | Get reviews for a book |
+| POST | `/api/review` | Create review 🔒 |
+| PUT | `/api/review/{id}` | Update review 🔒 |
+| DELETE | `/api/review/{id}` | Delete review 🔒 |
+
+### 📝 Blog Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/blog` | Get all blogs |
+| GET | `/api/blog/{id}` | Get blog by ID |
+| POST | `/api/blog` | Create blog post 🔒 |
+| PUT | `/api/blog/{id}` | Update blog post 🔒 |
+| DELETE | `/api/blog/{id}` | Delete blog post 🔒 |
+
+*🔒 = Requires authentication*
+
+For detailed API documentation, visit `/swagger` when the application is running.
+
+## 🏗️ Architecture
+
+```
+TaleTrail.API/
+├── Controllers/         # API endpoints
+├── Services/           # Business logic
+├── DAO/               # Data access layer
+├── Model/             # Entity models and DTOs
+├── Middleware/        # Custom middleware
+├── Extensions/        # Extension methods
+└── Data/             # Database seeding
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SUPABASE_URL` | Your Supabase project URL | ✅ |
+| `SUPABASE_KEY` | Your Supabase anon key | ✅ |
+| `SUPABASE_JWT_SECRET` | Your Supabase JWT secret | ✅ |
+| `ALLOWED_ORIGINS` | CORS allowed origins | ❌ |
+| `ASPNETCORE_ENVIRONMENT` | Environment (Development/Production) | ❌ |
+
+### Database Schema
+
+The application uses the following main entities:
+- **Users**: User profiles and authentication
+- **Books**: Book information with authors and publishers
+- **UserBooks**: User's reading lists and progress
+- **Reviews**: Book reviews and ratings
+- **Blogs**: User blog posts
+- **Authors**: Book authors
+- **Publishers**: Book publishers
+
+## 🚀 Deployment
+
+### Deploy to Render
+
+1. **Push to GitHub**: Ensure your code is in a GitHub repository
+2. **Connect to Render**: Link your GitHub repo to Render
+3. **Set Environment Variables**: Configure your Supabase credentials in Render
+4. **Deploy**: Render will automatically build and deploy using Docker
+
+### Deploy to Other Platforms
+
+The application is containerized and can be deployed to:
+- **Heroku**: Using Docker
+- **Railway**: Using Docker
+- **DigitalOcean App Platform**: Using Docker
+- **AWS ECS/Fargate**: Using Docker
+- **Google Cloud Run**: Using Docker
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+dotnet test
+
+# Run with coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- 📖 [Documentation](./docs/)
+- 🐛 [Issues](https://github.com/yourusername/taletrail-api/issues)
+- 💬 [Discussions](https://github.com/yourusername/taletrail-api/discussions)
+
+## 🙏 Acknowledgments
+
+- [.NET Team](https://github.com/dotnet) for the amazing framework
+- [Supabase](https://supabase.com) for the backend infrastructure
+- [Swagger](https://swagger.io) for API documentation
+- Community contributors and supporters
+
+---
+
+<p align="center">Made with ❤️ for book lovers</p>

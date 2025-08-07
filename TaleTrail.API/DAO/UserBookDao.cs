@@ -36,7 +36,7 @@ public class UserBookDao
     {
         var response = await _supabaseService.Supabase
             .From<UserBook>()
-            .Where(ub => ub.UserId == userId && ub.ReadingStatus == ReadingStatus.InProgress)
+            .Where(ub => ub.UserId == userId && ub.ReadingStatus == "InProgress")
             .Get();
 
         return response.Models;

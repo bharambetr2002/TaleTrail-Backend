@@ -1,7 +1,8 @@
 using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
+using System.Text.Json.Serialization;
 
-namespace TaleTrail.API.Model;  // Changed from TaleTrail.API.Model.Entities
+namespace TaleTrail.API.Model;
 
 [Table("user_books")]
 public class UserBook : BaseModel
@@ -16,7 +17,7 @@ public class UserBook : BaseModel
     public Guid BookId { get; set; }
 
     [Column("reading_status")]
-    public ReadingStatus ReadingStatus { get; set; }
+    public string ReadingStatus { get; set; } = "ToRead";
 
     [Column("progress")]
     public int Progress { get; set; } = 0;

@@ -30,7 +30,7 @@ public class UserBookService
                 BookId = userBook.BookId,
                 BookTitle = book?.Title ?? "Unknown Book",
                 BookCoverUrl = book?.CoverImageUrl,
-                ReadingStatus = userBook.ReadingStatus,
+                ReadingStatus = ConvertStringToEnum(userBook.ReadingStatus),
                 Progress = userBook.Progress,
                 StartedAt = userBook.StartedAt,
                 CompletedAt = userBook.CompletedAt,
@@ -58,7 +58,7 @@ public class UserBookService
             Id = Guid.NewGuid(),
             UserId = userId,
             BookId = request.BookId,
-            ReadingStatus = request.ReadingStatus,
+            ReadingStatus = ConvertEnumToString(request.ReadingStatus),
             Progress = request.Progress,
             StartedAt = request.ReadingStatus == ReadingStatus.InProgress ? DateTime.UtcNow : null,
             CompletedAt = request.ReadingStatus == ReadingStatus.Completed ? DateTime.UtcNow : null,
@@ -77,7 +77,7 @@ public class UserBookService
             BookId = createdUserBook.BookId,
             BookTitle = book.Title,
             BookCoverUrl = book.CoverImageUrl,
-            ReadingStatus = createdUserBook.ReadingStatus,
+            ReadingStatus = request.ReadingStatus,
             Progress = createdUserBook.Progress,
             StartedAt = createdUserBook.StartedAt,
             CompletedAt = createdUserBook.CompletedAt,
@@ -93,7 +93,7 @@ public class UserBookService
 
         var book = await _bookDao.GetByIdAsync(bookId);
 
-        userBook.ReadingStatus = request.ReadingStatus;
+        userBook.ReadingStatus = ConvertEnumToString(request.ReadingStatus);
         userBook.Progress = request.Progress;
         userBook.UpdatedAt = DateTime.UtcNow;
 
@@ -129,7 +129,7 @@ public class UserBookService
             BookId = updatedUserBook.BookId,
             BookTitle = book?.Title ?? "Unknown Book",
             BookCoverUrl = book?.CoverImageUrl,
-            ReadingStatus = updatedUserBook.ReadingStatus,
+            ReadingStatus = request.ReadingStatus,
             Progress = updatedUserBook.Progress,
             StartedAt = updatedUserBook.StartedAt,
             CompletedAt = updatedUserBook.CompletedAt,
@@ -144,5 +144,30 @@ public class UserBookService
             throw new KeyNotFoundException("Book not found in your list");
 
         await _userBookDao.DeleteAsync(userId, bookId);
+    }
+
+    // Helper methods for enum conversion
+    private static string ConvertEnumToString(ReadingStatus status)
+    {
+        return status switch
+        {
+            ReadingStatus.ToRead => "ToRead",
+            ReadingStatus.InProgress => "InProgress",
+            ReadingStatus.Completed => "Completed",
+            ReadingStatus.Dropped => "Dropped",
+            _ => "ToRead"
+        };
+    }
+
+    private static ReadingStatus ConvertStringToEnum(string status)
+    {
+        return status switch
+        {
+            "ToRead" => ReadingStatus.ToRead,
+            "InProgress" => ReadingStatus.InProgress,
+            "Completed" => ReadingStatus.Completed,
+            "Dropped" => ReadingStatus.Dropped,
+            _ => ReadingStatus.ToRead
+        };
     }
 }
