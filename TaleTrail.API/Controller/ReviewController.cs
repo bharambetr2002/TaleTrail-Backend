@@ -13,8 +13,8 @@ public class ReviewController : BaseController
 {
     private readonly ReviewService _reviewService;
 
-    public ReviewController(UserService userService, ReviewService reviewService)
-        : base(userService)
+    public ReviewController(UserService userService, ReviewService reviewService, ILogger<ReviewController> logger)
+        : base(userService, logger)
     {
         _reviewService = reviewService;
     }
@@ -50,6 +50,6 @@ public class ReviewController : BaseController
     {
         var userId = GetCurrentUserId();
         await _reviewService.DeleteReviewAsync(id, userId);
-        return Ok(ApiResponse<object>.SuccessResponse("Review deleted", null));
+        return Ok(ApiResponse<string?>.SuccessResponse("Review deleted", null));
     }
 }

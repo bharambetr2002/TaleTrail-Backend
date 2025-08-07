@@ -36,7 +36,7 @@ public class DataSeeder
             var publishers = await SeedPublishersAsync();
             _logger.LogInformation($"✅ Seeded {publishers.Count} publishers");
 
-            var books = await SeedBooksAsync(authors, publishers);
+            var books = await SeedBooksAsync(publishers);
             _logger.LogInformation($"✅ Seeded {books.Count} books");
 
             // Seed book-author relationships
@@ -172,7 +172,7 @@ public class DataSeeder
         return inserted;
     }
 
-    private async Task<List<Book>> SeedBooksAsync(List<Author> authors, List<Publisher> publishers)
+    private async Task<List<Book>> SeedBooksAsync(List<Publisher> publishers)
     {
         var books = new List<Book>
         {
@@ -183,7 +183,6 @@ public class DataSeeder
                 Description = "A dystopian social science fiction novel exploring themes of totalitarianism, surveillance, and rebellion.",
                 Language = "English",
                 PublicationYear = 1949,
-                AuthorId = authors.First(a => a.Name == "George Orwell").Id,
                 PublisherId = publishers.First(p => p.Name == "Penguin Books").Id,
                 CoverImageUrl = "https://images.example.com/1984.jpg",
                 CreatedAt = DateTime.UtcNow,
@@ -196,7 +195,6 @@ public class DataSeeder
                 Description = "An allegorical novella about a group of farm animals who rebel against their human farmer.",
                 Language = "English",
                 PublicationYear = 1945,
-                AuthorId = authors.First(a => a.Name == "George Orwell").Id,
                 PublisherId = publishers.First(p => p.Name == "Penguin Books").Id,
                 CoverImageUrl = "https://images.example.com/animal-farm.jpg",
                 CreatedAt = DateTime.UtcNow,
@@ -209,7 +207,6 @@ public class DataSeeder
                 Description = "The first novel in the Harry Potter series about a young wizard's journey.",
                 Language = "English",
                 PublicationYear = 1997,
-                AuthorId = authors.First(a => a.Name == "J.K. Rowling").Id,
                 PublisherId = publishers.First(p => p.Name == "Bloomsbury Publishing").Id,
                 CoverImageUrl = "https://images.example.com/hp1.jpg",
                 CreatedAt = DateTime.UtcNow,
@@ -222,7 +219,6 @@ public class DataSeeder
                 Description = "A 2002 novel combining elements of magical realism and postmodernism.",
                 Language = "Japanese",
                 PublicationYear = 2002,
-                AuthorId = authors.First(a => a.Name == "Haruki Murakami").Id,
                 PublisherId = publishers.First(p => p.Name == "Vintage Books").Id,
                 CoverImageUrl = "https://images.example.com/kafka-shore.jpg",
                 CreatedAt = DateTime.UtcNow,
@@ -235,7 +231,6 @@ public class DataSeeder
                 Description = "A 1987 novel about the life of a former slave after the American Civil War.",
                 Language = "English",
                 PublicationYear = 1987,
-                AuthorId = authors.First(a => a.Name == "Toni Morrison").Id,
                 PublisherId = publishers.First(p => p.Name == "Random House").Id,
                 CoverImageUrl = "https://images.example.com/beloved.jpg",
                 CreatedAt = DateTime.UtcNow,
@@ -248,7 +243,6 @@ public class DataSeeder
                 Description = "A landmark novel telling the multi-generational story of the Buendía family.",
                 Language = "Spanish",
                 PublicationYear = 1967,
-                AuthorId = authors.First(a => a.Name == "Gabriel García Márquez").Id,
                 PublisherId = publishers.First(p => p.Name == "Random House").Id,
                 CoverImageUrl = "https://images.example.com/solitude.jpg",
                 CreatedAt = DateTime.UtcNow,

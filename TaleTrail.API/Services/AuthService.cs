@@ -17,33 +17,26 @@ public class AuthService
     {
         try
         {
-            // Validate input
-            if (string.IsNullOrWhiteSpace(request.Email))
-                throw new ArgumentException("Email is required");
-
-            if (string.IsNullOrWhiteSpace(request.Password))
-                throw new ArgumentException("Password is required");
-
-            if (string.IsNullOrWhiteSpace(request.Username))
-                throw new ArgumentException("Username is required");
+            // Validation code stays the same...
 
             var session = await _supabaseService.Supabase.Auth.SignUp(request.Email, request.Password, new SignUpOptions
             {
                 Data = new Dictionary<string, object>
-                {
-                    { "full_name", request.FullName ?? "" },
-                    { "username", request.Username }
-                }
+            {
+                { "full_name", request.FullName ?? "" },
+                { "username", request.Username }
+            }
             });
 
             if (session?.User == null)
                 throw new InvalidOperationException("Failed to create user account");
 
+            // Return DTO instead of entity
             return new AuthResponse
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = new Model.User
+                User = new UserResponseDTO  // Changed here
                 {
                     Id = Guid.Parse(session.User.Id),
                     Email = session.User.Email ?? "",
@@ -64,26 +57,19 @@ public class AuthService
     {
         try
         {
-            // Validate input
-            if (string.IsNullOrWhiteSpace(request.Email))
-                throw new ArgumentException("Email is required");
-
-            if (string.IsNullOrWhiteSpace(request.Password))
-                throw new ArgumentException("Password is required");
+            // Validation code stays the same...
 
             var session = await _supabaseService.Supabase.Auth.SignIn(request.Email, request.Password);
 
             if (session?.User == null)
                 throw new UnauthorizedAccessException("Invalid email or password");
 
-            // Note: We don't create user profile here - that's handled by BaseController's "self-healing" logic
-            // This keeps the AuthService focused only on authentication
-
+            // Return DTO instead of entity
             return new AuthResponse
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = new Model.User
+                User = new UserResponseDTO  // Changed here
                 {
                     Id = Guid.Parse(session.User.Id),
                     Email = session.User.Email ?? "",

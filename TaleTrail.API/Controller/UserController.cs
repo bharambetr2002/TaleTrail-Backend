@@ -10,7 +10,7 @@ namespace TaleTrail.API.Controllers;
 [Route("api/[controller]")]
 public class UserController : BaseController
 {
-    public UserController(UserService userService) : base(userService) { }
+    public UserController(UserService userService, ILogger<UserController> logger) : base(userService, logger) { }
 
     [HttpGet("profile/my-profile")]
     [Authorize]
@@ -35,6 +35,6 @@ public class UserController : BaseController
     {
         var userId = GetCurrentUserId();
         await _userService.DeleteUserAsync(userId);
-        return Ok(ApiResponse<object>.SuccessResponse("Profile deleted", null));
+        return Ok(ApiResponse<string?>.SuccessResponse("Profile deleted", null));
     }
 }

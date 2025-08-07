@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
 using TaleTrail.API.Model;
+using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.Services;
 
 namespace TaleTrail.API.Controllers;
@@ -21,8 +22,21 @@ public class ProfileController : ControllerBase
     {
         var user = await _userService.GetUserByUsernameAsync(username);
         if (user == null)
-            return NotFound(ApiResponse<User>.ErrorResponse("User not found"));
+            return NotFound(ApiResponse<UserResponseDTO>.ErrorResponse("User not found"));
 
-        return Ok(ApiResponse<User>.SuccessResponse("Fetched public profile", user));
+        // Convert entity to DTO
+        var userDto = new UserResponseDTO
+        {
+            Id = user.Id,
+            Email = user.Email,
+            FullName = user.FullName,
+            Username = user.Username,
+            Bio = user.Bio,
+            AvatarUrl = user.AvatarUrl,
+            CreatedAt = user.CreatedAt,
+            UpdatedAt = user.UpdatedAt
+        };
+
+        return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Fetched public profile", userDto));
     }
 }

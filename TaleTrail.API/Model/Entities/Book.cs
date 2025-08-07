@@ -1,7 +1,7 @@
 using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
 
-namespace TaleTrail.API.Model;  // Changed from TaleTrail.API.Model.Entities
+namespace TaleTrail.API.Model;
 
 [Table("books")]
 public class Book : BaseModel
@@ -23,9 +23,6 @@ public class Book : BaseModel
 
     [Column("publication_year")]
     public int? PublicationYear { get; set; }
-
-    [Column("author_id")]
-    public Guid? AuthorId { get; set; }
 
     [Column("publisher_id")]
     public Guid? PublisherId { get; set; }

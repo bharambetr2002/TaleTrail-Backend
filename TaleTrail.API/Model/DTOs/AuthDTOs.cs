@@ -35,9 +35,11 @@ public class LoginRequest
     public string Password { get; set; } = string.Empty;
 }
 
+// REPLACE this in Model/DTOs/AuthDTOs.cs:
+
 public class AuthResponse
 {
     public string AccessToken { get; set; } = string.Empty;
     public string RefreshToken { get; set; } = string.Empty;
-    public User User { get; set; } = new();
+    public UserResponseDTO User { get; set; } = new();  // Changed from User to UserResponseDTO
 }

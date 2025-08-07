@@ -13,8 +13,8 @@ public class BlogLikeController : BaseController
 {
     private readonly BlogService _blogService;
 
-    public BlogLikeController(UserService userService, BlogService blogService)
-        : base(userService)
+    public BlogLikeController(UserService userService, BlogService blogService, ILogger<BlogLikeController> logger)
+        : base(userService, logger)
     {
         _blogService = blogService;
     }
@@ -32,7 +32,7 @@ public class BlogLikeController : BaseController
     {
         var userId = GetCurrentUserId();
         await _blogService.UnlikeBlogAsync(blogId, userId);
-        return Ok(ApiResponse<object>.SuccessResponse("Blog unliked", null));
+        return Ok(ApiResponse<string?>.SuccessResponse("Blog unliked", null));
     }
 
     [HttpGet("{blogId}/count")]

@@ -9,6 +9,7 @@ using TaleTrail.API.Services;
 using TaleTrail.API.Extensions;
 using TaleTrail.API.Middleware;
 using Serilog;
+using TaleTrail.API.Model;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,14 +54,31 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register SupabaseService (Singleton)
-builder.Services.AddSingleton<SupabaseService>();
+// Register SupabaseService (Singleton) - IMPORTANT: Add ILogger<SupabaseService>
+builder.Services.AddSingleton<SupabaseService>(provider =>
+{
+    var logger = provider.GetRequiredService<ILogger<SupabaseService>>();
+    return new SupabaseService(logger);
+});
 
-// Register all DAOs (Scoped)
-builder.Services.AddScoped<AuthorDao>();
+// Register all DAOs (Scoped) - All now require ILogger
+builder.Services.AddScoped<AuthorDao>(provider =>
+{
+    var supabaseService = provider.GetRequiredService<SupabaseService>();
+    var logger = provider.GetRequiredService<ILogger<AuthorDao>>();
+    return new AuthorDao(supabaseService, logger);
+});
+
 builder.Services.AddScoped<BlogDao>();
 builder.Services.AddScoped<BlogLikeDao>();
-builder.Services.AddScoped<BookDao>();
+
+builder.Services.AddScoped<BookDao>(provider =>
+{
+    var supabaseService = provider.GetRequiredService<SupabaseService>();
+    var logger = provider.GetRequiredService<ILogger<BookDao>>();
+    return new BookDao(supabaseService, logger);
+});
+
 builder.Services.AddScoped<PublisherDao>();
 builder.Services.AddScoped<ReviewDao>();
 builder.Services.AddScoped<UserBookDao>();
@@ -287,11 +305,18 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 // Map Controllers
 app.MapControllers();
 
-// Seed the database on startup
+// Test database connection before seeding
 using (var scope = app.Services.CreateScope())
 {
     try
     {
+        Log.Information("🔍 Testing database connection...");
+        var supabaseService = scope.ServiceProvider.GetRequiredService<SupabaseService>();
+
+        // Test connection with a simple query
+        var testResponse = await supabaseService.Supabase.From<Author>().Limit(1).Get();
+        Log.Information("✅ Database connection test successful");
+
         Log.Information("🌱 Starting database seeding...");
         var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
         await seeder.SeedAsync();
@@ -299,7 +324,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Log.Error(ex, "❌ Database seeding failed");
+        Log.Error(ex, "❌ Database connection or seeding failed");
         // Don't throw - let the app start even if seeding fails in production
         if (app.Environment.IsDevelopment())
         {

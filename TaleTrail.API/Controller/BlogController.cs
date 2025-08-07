@@ -13,8 +13,8 @@ public class BlogController : BaseController
 {
     private readonly BlogService _blogService;
 
-    public BlogController(UserService userService, BlogService blogService)
-        : base(userService)
+    public BlogController(UserService userService, BlogService blogService, ILogger<BlogController> logger)
+        : base(userService, logger)
     {
         _blogService = blogService;
     }
@@ -65,6 +65,6 @@ public class BlogController : BaseController
     {
         var userId = GetCurrentUserId();
         await _blogService.DeleteBlogAsync(id, userId);
-        return Ok(ApiResponse<object>.SuccessResponse("Blog deleted", null));
+        return Ok(ApiResponse<string?>.SuccessResponse("Blog deleted", null));
     }
 }

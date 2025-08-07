@@ -113,16 +113,14 @@ public class BookService
     }
 
     /// <summary>
-    /// Get books by author ID
+    /// Get books by author ID using the junction table
     /// </summary>
     public async Task<List<Book>> GetBooksByAuthorAsync(Guid authorId)
     {
         try
         {
             _logger.LogDebug("Retrieving books by author ID: {AuthorId}", authorId);
-
-            var allBooks = await _bookDao.GetAllAsync();
-            return allBooks.Where(b => b.AuthorId == authorId).ToList();
+            return await _bookDao.GetByAuthorIdAsync(authorId);
         }
         catch (Exception ex)
         {

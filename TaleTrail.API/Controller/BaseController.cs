@@ -8,10 +8,12 @@ namespace TaleTrail.API.Controllers;
 public abstract class BaseController : ControllerBase
 {
     protected readonly UserService _userService;
+    protected readonly ILogger _logger;
 
-    protected BaseController(UserService userService)
+    protected BaseController(UserService userService, ILogger logger)
     {
         _userService = userService;
+        _logger = logger;
     }
 
     /// <summary>

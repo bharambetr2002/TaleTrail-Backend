@@ -14,8 +14,8 @@ public class UserBookController : BaseController
 {
     private readonly UserBookService _userBookService;
 
-    public UserBookController(UserService userService, UserBookService userBookService)
-        : base(userService)
+    public UserBookController(UserService userService, UserBookService userBookService, ILogger<UserBookController> logger)
+        : base(userService, logger)
     {
         _userBookService = userBookService;
     }
@@ -49,6 +49,6 @@ public class UserBookController : BaseController
     {
         var userId = GetCurrentUserId();
         await _userBookService.RemoveBookFromUserListAsync(userId, bookId);
-        return Ok(ApiResponse<object>.SuccessResponse("Book removed from list", null));
+        return Ok(ApiResponse<string?>.SuccessResponse("Book removed from list", null));
     }
 }
