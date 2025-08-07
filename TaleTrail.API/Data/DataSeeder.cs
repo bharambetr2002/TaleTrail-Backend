@@ -1,4 +1,4 @@
-using TaleTrail.API.Model.Entities;
+using TaleTrail.API.Model;
 using TaleTrail.API.Services;
 using Microsoft.Extensions.Logging;
 
@@ -274,6 +274,27 @@ public class DataSeeder
             new()
             {
                 Id = Guid.NewGuid(),
+                BookId = books.First(b => b.Title == "1984").Id,
+                AuthorId = authors.First(a => a.Name == "George Orwell").Id,
+                CreatedAt = DateTime.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                BookId = books.First(b => b.Title == "Animal Farm").Id,
+                AuthorId = authors.First(a => a.Name == "George Orwell").Id,
+                CreatedAt = DateTime.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                BookId = books.First(b => b.Title == "Harry Potter and the Philosopher's Stone").Id,
+                AuthorId = authors.First(a => a.Name == "J.K. Rowling").Id,
+                CreatedAt = DateTime.UtcNow
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
                 BookId = books.First(b => b.Title == "Kafka on the Shore").Id,
                 AuthorId = authors.First(a => a.Name == "Haruki Murakami").Id,
                 CreatedAt = DateTime.UtcNow
@@ -299,25 +320,4 @@ public class DataSeeder
             await _supabaseService.Supabase.From<BookAuthor>().Insert(bookAuthor);
         }
     }
-}1984").Id,
-                AuthorId = authors.First(a => a.Name == "George Orwell").Id,
-                CreatedAt = DateTime.UtcNow
-            },
-            new()
-            {
-                Id = Guid.NewGuid(),
-                BookId = books.First(b => b.Title == "Animal Farm").Id,
-                AuthorId = authors.First(a => a.Name == "George Orwell").Id,
-                CreatedAt = DateTime.UtcNow
-            },
-            new()
-            {
-                Id = Guid.NewGuid(),
-                BookId = books.First(b => b.Title == "Harry Potter and the Philosopher's Stone").Id,
-                AuthorId = authors.First(a => a.Name == "J.K. Rowling").Id,
-                CreatedAt = DateTime.UtcNow
-            },
-            new()
-            {
-                Id = Guid.NewGuid(),
-                BookId = books.First(b => b.Title == "
+}

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
-using TaleTrail.API.Model.Entities;
+using TaleTrail.API.Model; // Fixed namespace
 using TaleTrail.API.Services;
 
 namespace TaleTrail.API.Controllers;
@@ -26,12 +26,6 @@ public class BookController : ControllerBase
     /// <summary>
     /// Get all books with optional search functionality
     /// </summary>
-    /// <param name="search">Optional search term to filter books by title</param>
-    /// <param name="limit">Optional limit for number of results (default: 50, max: 100)</param>
-    /// <param name="offset">Optional offset for pagination (default: 0)</param>
-    /// <returns>A list of books matching the criteria</returns>
-    /// <response code="200">Returns the list of books</response>
-    /// <response code="400">If the search parameters are invalid</response>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<List<Book>>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
@@ -86,11 +80,6 @@ public class BookController : ControllerBase
     /// <summary>
     /// Get a specific book by its ID
     /// </summary>
-    /// <param name="id">The unique identifier of the book</param>
-    /// <returns>The book details</returns>
-    /// <response code="200">Returns the book details</response>
-    /// <response code="404">If the book is not found</response>
-    /// <response code="400">If the book ID format is invalid</response>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<Book>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 404)]
@@ -126,14 +115,6 @@ public class BookController : ControllerBase
     /// <summary>
     /// Search books by various criteria
     /// </summary>
-    /// <param name="title">Search by book title</param>
-    /// <param name="author">Search by author name</param>
-    /// <param name="language">Filter by language</param>
-    /// <param name="yearFrom">Filter books published from this year</param>
-    /// <param name="yearTo">Filter books published until this year</param>
-    /// <returns>List of books matching the search criteria</returns>
-    /// <response code="200">Returns the matching books</response>
-    /// <response code="400">If the search parameters are invalid</response>
     [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<List<Book>>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
@@ -190,11 +171,6 @@ public class BookController : ControllerBase
     /// <summary>
     /// Get books by a specific author
     /// </summary>
-    /// <param name="authorId">The unique identifier of the author</param>
-    /// <returns>List of books by the specified author</returns>
-    /// <response code="200">Returns the books by the author</response>
-    /// <response code="400">If the author ID format is invalid</response>
-    /// <response code="404">If no books are found for the author</response>
     [HttpGet("by-author/{authorId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<List<Book>>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]

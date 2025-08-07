@@ -1,6 +1,5 @@
 using TaleTrail.API.Model;
 using TaleTrail.API.Model.DTOs;
-using TaleTrail.API.DAO;
 using Supabase.Gotrue;
 
 namespace TaleTrail.API.Services;
@@ -8,46 +7,56 @@ namespace TaleTrail.API.Services;
 public class AuthService
 {
     private readonly SupabaseService _supabaseService;
-    private readonly UserDao _userDao;
 
-    public AuthService(SupabaseService supabaseService, UserDao userDao)
+    public AuthService(SupabaseService supabaseService)
     {
         _supabaseService = supabaseService;
-        _userDao = userDao;
     }
 
     public async Task<AuthResponse> SignUpAsync(SignupRequest request)
     {
         try
         {
+            // Validate input
+            if (string.IsNullOrWhiteSpace(request.Email))
+                throw new ArgumentException("Email is required");
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+                throw new ArgumentException("Password is required");
+
+            if (string.IsNullOrWhiteSpace(request.Username))
+                throw new ArgumentException("Username is required");
+
             var session = await _supabaseService.Supabase.Auth.SignUp(request.Email, request.Password, new SignUpOptions
             {
                 Data = new Dictionary<string, object>
                 {
-                    { "full_name", request.FullName },
+                    { "full_name", request.FullName ?? "" },
                     { "username", request.Username }
                 }
             });
 
             if (session?.User == null)
-                throw new Exception("Failed to create user");
+                throw new InvalidOperationException("Failed to create user account");
 
             return new AuthResponse
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = new TaleTrail.API.Model.User
+                User = new Model.User
                 {
                     Id = Guid.Parse(session.User.Id),
                     Email = session.User.Email ?? "",
                     FullName = request.FullName,
-                    Username = request.Username
+                    Username = request.Username,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 }
             };
         }
         catch (Exception ex)
         {
-            throw new Exception($"Signup failed: {ex.Message}");
+            throw new InvalidOperationException($"Signup failed: {ex.Message}", ex);
         }
     }
 
@@ -55,41 +64,43 @@ public class AuthService
     {
         try
         {
+            // Validate input
+            if (string.IsNullOrWhiteSpace(request.Email))
+                throw new ArgumentException("Email is required");
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+                throw new ArgumentException("Password is required");
+
             var session = await _supabaseService.Supabase.Auth.SignIn(request.Email, request.Password);
 
             if (session?.User == null)
-                throw new Exception("Invalid credentials");
+                throw new UnauthorizedAccessException("Invalid email or password");
 
-            // Get or create user profile
-            var userId = Guid.Parse(session.User.Id);
-            var user = await _userDao.GetByIdAsync(userId);
-
-            if (user == null)
-            {
-                // Create user profile from auth data
-                user = new TaleTrail.API.Model.User
-                {
-                    Id = userId,
-                    Email = session.User.Email ?? "",
-                    FullName = session.User.UserMetadata?["full_name"]?.ToString() ?? "",
-                    Username = session.User.UserMetadata?["username"]?.ToString() ?? "",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                user = await _userDao.CreateAsync(user);
-            }
+            // Note: We don't create user profile here - that's handled by BaseController's "self-healing" logic
+            // This keeps the AuthService focused only on authentication
 
             return new AuthResponse
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = user
+                User = new Model.User
+                {
+                    Id = Guid.Parse(session.User.Id),
+                    Email = session.User.Email ?? "",
+                    FullName = session.User.UserMetadata?["full_name"]?.ToString() ?? "",
+                    Username = session.User.UserMetadata?["username"]?.ToString() ?? "",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
             };
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            throw new Exception($"Login failed: {ex.Message}");
+            throw new InvalidOperationException($"Login failed: {ex.Message}", ex);
         }
     }
 }

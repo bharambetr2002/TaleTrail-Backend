@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TaleTrail.API.Services;
-using TaleTrail.API.Model.Entities;
+using TaleTrail.API.Model; // Fixed namespace
 
 namespace TaleTrail.API.Extensions;
 

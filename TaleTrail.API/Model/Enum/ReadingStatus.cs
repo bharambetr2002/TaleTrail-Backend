@@ -1,4 +1,4 @@
-namespace TaleTrail.API.Model.Enums;
+namespace TaleTrail.API.Model;
 
 /// <summary>
 /// Represents the reading status of a book in a user's library

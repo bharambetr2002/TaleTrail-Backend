@@ -1,7 +1,7 @@
 using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
 
-namespace TaleTrail.API.Model;
+namespace TaleTrail.API.Model;  // Changed from TaleTrail.API.Model.Entities
 
 [Table("books")]
 public class Book : BaseModel

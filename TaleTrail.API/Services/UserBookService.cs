@@ -30,19 +30,19 @@ public class UserBookService
         // Check if book exists
         var book = await _bookDao.GetByIdAsync(request.BookId);
         if (book == null)
-            throw new Exception("Book not found");
+            throw new KeyNotFoundException("Book not found");
 
         // Check if user already has this book
         var existingUserBook = await _userBookDao.GetByUserAndBookAsync(userId, request.BookId);
         if (existingUserBook != null)
-            throw new Exception("Book already in user's list");
+            throw new InvalidOperationException("Book already in user's list");
 
         // Business rule: Maximum 3 books "in progress"
         if (request.ReadingStatus == ReadingStatus.InProgress)
         {
             var inProgressBooks = await _userBookDao.GetInProgressByUserAsync(userId);
             if (inProgressBooks.Count >= 3)
-                throw new Exception("You can have a maximum of 3 books in progress");
+                throw new InvalidOperationException("You can have a maximum of 3 books in progress");
         }
 
         var userBook = new UserBook
@@ -51,7 +51,7 @@ public class UserBookService
             UserId = userId,
             BookId = request.BookId,
             ReadingStatus = request.ReadingStatus,
-            Progress = request.Progress,
+            Progress = Math.Max(0, Math.Min(100, request.Progress)), // Ensure progress is 0-100
             StartedAt = request.ReadingStatus == ReadingStatus.InProgress ? DateTime.UtcNow : null,
             CompletedAt = request.ReadingStatus == ReadingStatus.Completed ? DateTime.UtcNow : null,
             CreatedAt = DateTime.UtcNow,
@@ -65,7 +65,7 @@ public class UserBookService
     {
         var existingUserBook = await _userBookDao.GetByUserAndBookAsync(userId, bookId);
         if (existingUserBook == null)
-            throw new Exception("Book not found in user's list");
+            throw new KeyNotFoundException("Book not found in user's list");
 
         // Business rule: Maximum 3 books "in progress"
         if (request.ReadingStatus == ReadingStatus.InProgress &&
@@ -73,20 +73,25 @@ public class UserBookService
         {
             var inProgressBooks = await _userBookDao.GetInProgressByUserAsync(userId);
             if (inProgressBooks.Count >= 3)
-                throw new Exception("You can have a maximum of 3 books in progress");
+                throw new InvalidOperationException("You can have a maximum of 3 books in progress");
         }
 
         existingUserBook.ReadingStatus = request.ReadingStatus;
-        existingUserBook.Progress = request.Progress;
+        existingUserBook.Progress = Math.Max(0, Math.Min(100, request.Progress)); // Ensure progress is 0-100
 
         // Update timestamps based on status
         if (request.ReadingStatus == ReadingStatus.InProgress && existingUserBook.StartedAt == null)
             existingUserBook.StartedAt = DateTime.UtcNow;
 
         if (request.ReadingStatus == ReadingStatus.Completed)
+        {
             existingUserBook.CompletedAt = DateTime.UtcNow;
+            existingUserBook.Progress = 100; // Auto-complete progress
+        }
         else if (existingUserBook.ReadingStatus == ReadingStatus.Completed)
+        {
             existingUserBook.CompletedAt = null; // Reset if moving away from completed
+        }
 
         return await _userBookDao.UpdateAsync(existingUserBook);
     }
@@ -95,7 +100,7 @@ public class UserBookService
     {
         var existingUserBook = await _userBookDao.GetByUserAndBookAsync(userId, bookId);
         if (existingUserBook == null)
-            throw new Exception("Book not found in user's list");
+            throw new KeyNotFoundException("Book not found in user's list");
 
         await _userBookDao.DeleteAsync(userId, bookId);
     }

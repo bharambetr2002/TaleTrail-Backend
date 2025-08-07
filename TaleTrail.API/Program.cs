@@ -10,7 +10,9 @@ using TaleTrail.API.Extensions;
 using TaleTrail.API.Middleware;
 using Serilog;
 
+
 var builder = WebApplication.CreateBuilder(args);
+
 
 // Load environment variables
 DotNetEnv.Env.Load();
@@ -121,16 +123,6 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser());
 });
 
-// Configure API Versioning
-builder.Services.AddApiVersioning(opt =>
-{
-    opt.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
-    opt.AssumeDefaultVersionWhenUnspecified = true;
-    opt.ApiVersionReader = Microsoft.AspNetCore.Mvc.ApiVersionReader.Combine(
-        new Microsoft.AspNetCore.Mvc.HeaderApiVersionReader("X-Version"),
-        new Microsoft.AspNetCore.Mvc.QueryStringApiVersionReader("version")
-    );
-});
 
 // Add Health Checks
 builder.Services.AddHealthChecks()
