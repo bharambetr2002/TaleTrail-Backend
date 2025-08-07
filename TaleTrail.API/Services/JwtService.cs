@@ -2,11 +2,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using System;
-using System.Collections.Generic;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using System.Linq;
 
 namespace TaleTrail.API.Services
 {
@@ -23,7 +18,7 @@ namespace TaleTrail.API.Services
         }
 
         /// <summary>
-        /// Validates a Supabase JWT and extracts claims: sub, email, and role.
+        /// Validates a Supabase JWT and extracts claims
         /// </summary>
         public IEnumerable<Claim> GetClaimsFromToken(string token)
         {
@@ -40,29 +35,28 @@ namespace TaleTrail.API.Services
 
                 if (!handler.CanReadToken(token))
                 {
-                    _logger.LogWarning("Token format is invalid: {Token}", token[..Math.Min(20, token.Length)] + "...");
+                    _logger.LogWarning("Invalid token format");
                     throw new UnauthorizedAccessException("Token format is invalid.");
                 }
 
-                // Read token (without verifying yet)
+                // Read token without verification first
                 var jwt = handler.ReadJwtToken(token);
                 var claims = new List<Claim>();
 
-                // Extract sub (userId)
+                // Extract standard claims
                 var userId = jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
                 if (!string.IsNullOrEmpty(userId))
                     claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
 
-                // Extract email
                 var email = jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
                 if (!string.IsNullOrEmpty(email))
                     claims.Add(new Claim(ClaimTypes.Email, email));
 
-                // Extract role (if missing, default to user)
+                // Extract role (default to 'user' if not found)
                 var role = jwt.Claims.FirstOrDefault(c => c.Type == "role")?.Value ?? "user";
                 claims.Add(new Claim(ClaimTypes.Role, role));
 
-                // Signature + expiry validation
+                // Now validate the token signature and expiration
                 var validationParams = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
@@ -73,7 +67,6 @@ namespace TaleTrail.API.Services
                     ClockSkew = TimeSpan.Zero
                 };
 
-                // Validates signature + expiration (throws if fails)
                 handler.ValidateToken(token, validationParams, out _);
 
                 return claims;
@@ -86,12 +79,12 @@ namespace TaleTrail.API.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during token validation");
-                throw new UnauthorizedAccessException("Invalid Supabase token.", ex);
+                throw new UnauthorizedAccessException("Invalid token.", ex);
             }
         }
 
         /// <summary>
-        /// Checks if the JWT has a valid format (3 parts separated by dots).
+        /// Checks if JWT has valid format
         /// </summary>
         public bool IsValidJwtFormat(string token)
         {

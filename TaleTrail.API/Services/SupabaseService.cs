@@ -1,5 +1,4 @@
 using Supabase;
-using Supabase.Interfaces;
 
 namespace TaleTrail.API.Services
 {
@@ -9,7 +8,7 @@ namespace TaleTrail.API.Services
 
         public SupabaseService()
         {
-            // Get credentials from environment variables (required for Render)
+            // Get credentials from environment variables (Render will provide these)
             var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL")
                 ?? throw new InvalidOperationException("SUPABASE_URL environment variable is missing");
 
@@ -26,11 +25,12 @@ namespace TaleTrail.API.Services
 
             try
             {
-                _client.InitializeAsync().Wait(TimeSpan.FromSeconds(30));
+                // Initialize the client
+                Task.Run(async () => await _client.InitializeAsync()).Wait(TimeSpan.FromSeconds(30));
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Failed to initialize Supabase client", ex);
+                throw new InvalidOperationException($"Failed to initialize Supabase client: {ex.Message}", ex);
             }
         }
 
