@@ -3,11 +3,11 @@
 
 ## ✅ Working Endpoints
 
-- `POST /api/auth/signup` - 
-- `POST /api/auth/login` - 
-- `GET /api/user/profile` - No
-- `PUT /api/user/profile` - No
-- `GET /api/profile/{username}` - 
+- `POST /api/auth/signup` - Yes
+- `POST /api/auth/login` - Yes
+- `GET /api/user/profile` - Yes
+- `PUT /api/user/profile` - Yes
+- `GET /api/profile/{username}` - Yes
 
 ## 🔄 Now Fixed Endpoints
 
@@ -25,22 +25,22 @@
 - `GET /api/publisher/{id}` - yes
 
 ### 📝 Blog Endpoints
-- `GET /api/blog` (with optional `?userId=`)
-- `GET /api/blog/{id}`
-- `POST /api/blog` 🔒
-- `PUT /api/blog/{id}` 🔒
-- `DELETE /api/blog/{id}` 🔒
-- `POST /api/blog-like/{blogId}` 🔒
-- `DELETE /api/blog-like/{blogId}` 🔒
-- `GET /api/blog-like/{blogId}/count`
+- `GET /api/blog` (with optional `?userId=`) - yes
+- `GET /api/blog/{id}` - yes
+- `POST /api/blog` 🔒 - yes
+- `PUT /api/blog/{id}` 🔒 - yes
+- `DELETE /api/blog/{id}` 🔒 - yes
+- `POST /api/blog-like/{blogId}` 🔒 - yes
+- `DELETE /api/blog-like/{blogId}` 🔒 - yes
+- `GET /api/blog-like/{blogId}/count` - yes
 
 ### 🌟 Review Endpoints
-- `GET /api/review/book/{bookId}`
-- `POST /api/review` 🔒
-- `PUT /api/review/{id}` 🔒
-- `DELETE /api/review/{id}` 🔒
+- `GET /api/review/book/{bookId}` - yes
+- `POST /api/review` 🔒 - yes
+- `PUT /api/review/{id}` 🔒 - yes
+- `DELETE /api/review/{id}` 🔒 - yes
 
-### 📚 User Book Endpoints
+### 📚 User Book Endpoints - No
 - `GET /api/userbook/my-books` 🔒
 - `POST /api/userbook` 🔒
 - `PUT /api/userbook/{bookId}` 🔒
