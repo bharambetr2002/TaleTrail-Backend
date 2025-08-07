@@ -1,5 +1,5 @@
-using Postgrest.Models;
-using Postgrest.Attributes;
+using Supabase.Postgrest.Models;
+using Supabase.Postgrest.Attributes;
 
 namespace TaleTrail.API.Model;
 

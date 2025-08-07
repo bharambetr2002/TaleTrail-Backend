@@ -67,4 +67,9 @@ public class UserService
 
         return user;
     }
+
+    internal async Task<User> CreateUserAsync(User newUser)
+    {
+        throw new NotImplementedException();
+    }
 }

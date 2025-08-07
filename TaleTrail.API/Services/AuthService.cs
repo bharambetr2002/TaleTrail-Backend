@@ -36,7 +36,7 @@ public class AuthService
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = new User
+                User = new TaleTrail.API.Model.User
                 {
                     Id = Guid.Parse(session.User.Id),
                     Email = session.User.Email ?? "",
@@ -67,7 +67,7 @@ public class AuthService
             if (user == null)
             {
                 // Create user profile from auth data
-                user = new User
+                user = new TaleTrail.API.Model.User
                 {
                     Id = userId,
                     Email = session.User.Email ?? "",

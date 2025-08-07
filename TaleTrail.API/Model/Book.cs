@@ -1,7 +1,5 @@
-// File: Model/Book.cs
-using Postgrest.Attributes;
-using Postgrest.Models;
-using System.Text.Json.Serialization;
+using Supabase.Postgrest.Attributes;
+using Supabase.Postgrest.Models;
 
 namespace TaleTrail.API.Model;
 

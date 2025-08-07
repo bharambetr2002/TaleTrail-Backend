@@ -1,5 +1,6 @@
 using TaleTrail.API.Model;
 using TaleTrail.API.Services;
+using Supabase.Postgrest;
 
 namespace TaleTrail.API.DAO;
 
@@ -16,7 +17,7 @@ public class BlogDao
     {
         var response = await _supabaseService.Supabase
             .From<Blog>()
-            .Order("created_at", Postgrest.Constants.Ordering.Descending)
+            .Order("created_at", Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
@@ -27,7 +28,7 @@ public class BlogDao
         var response = await _supabaseService.Supabase
             .From<Blog>()
             .Where(b => b.UserId == userId)
-            .Order("created_at", Postgrest.Constants.Ordering.Descending)
+            .Order("created_at", Constants.Ordering.Descending)
             .Get();
 
         return response.Models;
