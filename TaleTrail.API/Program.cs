@@ -15,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Load environment variables
 DotNetEnv.Env.Load();
 
-// Configure logging
+// Configure Serilog logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .WriteTo.Console()
@@ -24,7 +24,7 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// Add services
+// Configure controllers with JSON options
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -34,7 +34,7 @@ builder.Services.AddControllers()
             System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
 
-// CORS
+// Configure CORS
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -49,10 +49,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register Supabase service
+// Register Supabase + DAOs + Services
 builder.Services.AddSingleton<SupabaseService>();
 
-// Register DAOs
 builder.Services.AddScoped<AuthorDao>();
 builder.Services.AddScoped<BookDao>();
 builder.Services.AddScoped<PublisherDao>();
@@ -62,7 +61,6 @@ builder.Services.AddScoped<UserDao>();
 builder.Services.AddScoped<BlogDao>();
 builder.Services.AddScoped<BlogLikeDao>();
 
-// Register Services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AuthorService>();
 builder.Services.AddScoped<BookService>();
@@ -72,10 +70,9 @@ builder.Services.AddScoped<UserBookService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<BlogService>();
 
-// Register DataSeeder
 builder.Services.AddScoped<DataSeeder>();
 
-// Configure JWT
+// Configure JWT authentication
 var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
 if (string.IsNullOrEmpty(jwtSecret))
     throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing");
@@ -101,7 +98,7 @@ builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy())
     .AddCheck<SupabaseHealthCheck>("supabase");
 
-// Swagger
+// Swagger (only enabled in Development)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -140,7 +137,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// Configure pipeline
+// Middlewares
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -157,9 +154,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health checks
 app.MapHealthChecks("/health");
-
 app.MapControllers();
 
 // Seed data
@@ -178,4 +173,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 Log.Information("TaleTrail API is running!");
+
 app.Run();
