@@ -1,5 +1,5 @@
-// File: Controllers/BookController.cs
 using Microsoft.AspNetCore.Mvc;
+using TaleTrail.API.Helpers;
 using TaleTrail.API.Model;
 using TaleTrail.API.Services;
 
@@ -20,7 +20,7 @@ public class BookController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var books = await _bookService.GetAllBooksAsync();
-        return Ok(new { success = true, message = "Fetched all books", data = books });
+        return Ok(ApiResponse<List<Book>>.SuccessResponse("Fetched all books", books));
     }
 
     [HttpGet("{id}")]
@@ -28,8 +28,8 @@ public class BookController : ControllerBase
     {
         var book = await _bookService.GetBookByIdAsync(id);
         if (book == null)
-            return NotFound(new { success = false, message = "Book not found" });
+            return NotFound(ApiResponse<Book>.ErrorResponse("Book not found"));
 
-        return Ok(new { success = true, message = "Fetched book", data = book });
+        return Ok(ApiResponse<Book>.SuccessResponse("Fetched book", book));
     }
 }

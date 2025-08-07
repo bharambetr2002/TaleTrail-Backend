@@ -1,6 +1,4 @@
-// File: Services/SupabaseService.cs
 using Supabase;
-using Postgrest;
 
 namespace TaleTrail.API.Services;
 
@@ -10,8 +8,10 @@ public class SupabaseService
 
     public SupabaseService()
     {
-        var url = Environment.GetEnvironmentVariable("SUPABASE_URL") ?? "";
-        var key = Environment.GetEnvironmentVariable("SUPABASE_KEY") ?? "";
+        var url = Environment.GetEnvironmentVariable("SUPABASE_URL")
+            ?? throw new InvalidOperationException("SUPABASE_URL environment variable is missing.");
+        var key = Environment.GetEnvironmentVariable("SUPABASE_KEY")
+            ?? throw new InvalidOperationException("SUPABASE_KEY environment variable is missing.");
 
         var options = new SupabaseOptions
         {
