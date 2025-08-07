@@ -1,92 +1,78 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization; // Add this for authorization
+using Microsoft.AspNetCore.Authorization;
 using TaleTrail.API.Services;
-using TaleTrail.API.DTOs;
+using TaleTrail.API.DTOs; // Make sure this line is included
 using TaleTrail.API.Helpers;
-using System;
 using System.Threading.Tasks;
 
 namespace TaleTrail.API.Controllers
 {
     [ApiController]
     [Route("api/user")]
-    [Authorize] // IMPORTANT: All actions in this controller require an authenticated user.
+    [Authorize]
     public class UserController : BaseController
     {
         private readonly UserService _userService;
-        private readonly ILogger<UserController> _logger;
 
-        public UserController(UserService userService, ILogger<UserController> logger)
+        public UserController(UserService userService)
         {
             _userService = userService;
-            _logger = logger;
         }
 
-        /// <summary>
-        /// Gets the profile information for the currently authenticated user.
-        /// </summary>
         [HttpGet("profile/my-profile")]
         public async Task<IActionResult> GetMyProfile()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var user = await _userService.GetUserByIdAsync(userId);
-                if (user == null)
-                    return NotFound(ApiResponse.ErrorResult("User profile not found"));
+            var user = await GetCurrentUserAsync(); // This gets the full User model from the database
 
-                return Ok(ApiResponse<object>.SuccessResult(user));
-            }
-            catch (Exception ex)
+            // --- THE FIX ---
+            // We now convert the complex User model into our simple UserResponseDTO
+            // before sending it back as JSON.
+            var userResponse = new UserResponseDTO
             {
-                _logger.LogError(ex, "Error getting current user's profile");
-                return BadRequest(ApiResponse.ErrorResult($"Error getting profile: {ex.Message}"));
-            }
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                FullName = user.FullName,
+                Bio = user.Bio,
+                AvatarUrl = user.AvatarUrl,
+                Location = user.Location,
+                Role = user.Role,
+                CreatedAt = user.CreatedAt
+            };
+            // -----------------
+
+            return Ok(ApiResponse<object>.SuccessResult(userResponse));
         }
 
-        /// <summary>
-        /// Updates the profile for the currently authenticated user.
-        /// </summary>
+        // We'll update the other methods for consistency as well.
         [HttpPut("profile/my-profile")]
         public async Task<IActionResult> UpdateMyProfile([FromBody] UserDto userDto)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var updatedUser = await _userService.UpdateUserAsync(userId, userDto);
-                if (updatedUser == null)
-                    return NotFound(ApiResponse.ErrorResult("User profile not found"));
+            var user = await GetCurrentUserAsync();
+            var updatedUser = await _userService.UpdateUserAsync(user.Id, userDto);
 
-                return Ok(ApiResponse<object>.SuccessResult(updatedUser, "Profile updated successfully"));
-            }
-            catch (Exception ex)
+            var userResponse = new UserResponseDTO
             {
-                _logger.LogError(ex, "Error updating user profile");
-                return BadRequest(ApiResponse.ErrorResult($"Error updating profile: {ex.Message}"));
-            }
+                Id = updatedUser.Id,
+                Username = updatedUser.Username,
+                Email = updatedUser.Email,
+                FullName = updatedUser.FullName,
+                Bio = updatedUser.Bio,
+                AvatarUrl = updatedUser.AvatarUrl,
+                Location = updatedUser.Location,
+                Role = updatedUser.Role,
+                CreatedAt = updatedUser.CreatedAt
+            };
+
+            return Ok(ApiResponse<object>.SuccessResult(userResponse));
         }
 
-        /// <summary>
-        /// Deletes the profile for the currently authenticated user.
-        /// </summary>
         [HttpDelete("profile/my-profile")]
         public async Task<IActionResult> DeleteMyProfile()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var success = await _userService.DeleteUserAsync(userId);
-                if (!success)
-                    return NotFound(ApiResponse.ErrorResult("User profile not found"));
-
-                // Note: You also need to handle deleting the user from Supabase Auth in the service.
-                return Ok(ApiResponse.SuccessResult("User deleted successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting user profile");
-                return BadRequest(ApiResponse.ErrorResult($"Error deleting user: {ex.Message}"));
-            }
+            var user = await GetCurrentUserAsync();
+            await _userService.DeleteUserAsync(user.Id);
+            return Ok(ApiResponse.SuccessResult("User deleted successfully"));
         }
     }
 }

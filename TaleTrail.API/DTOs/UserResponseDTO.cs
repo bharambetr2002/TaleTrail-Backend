@@ -1,11 +1,19 @@
-namespace TaleTrail.API.DTOs.Auth
+using System;
+
+namespace TaleTrail.API.DTOs
 {
+    // This is a clean data object. It has no complex attributes,
+    // so the JSON serializer can handle it without any problems.
     public class UserResponseDTO
     {
-        public string Email { get; set; } = string.Empty;
-        public string AccessToken { get; set; } = string.Empty;
-        public string RefreshToken { get; set; } = string.Empty;
-        public Guid? UserId { get; set; }
-        public string? FullName { get; set; }
+        public Guid Id { get; set; }
+        public string Username { get; set; }
+        public string Email { get; set; }
+        public string FullName { get; set; }
+        public string? Bio { get; set; }
+        public string? AvatarUrl { get; set; }
+        public string? Location { get; set; }
+        public string Role { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

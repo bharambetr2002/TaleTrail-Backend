@@ -3,9 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using TaleTrail.API.Services;
 using TaleTrail.API.DTOs;
 using TaleTrail.API.Helpers;
-using System;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Controllers
 {
@@ -14,107 +12,59 @@ namespace TaleTrail.API.Controllers
     public class ReviewController : BaseController
     {
         private readonly ReviewService _reviewService;
-        private readonly ILogger<ReviewController> _logger;
 
-        public ReviewController(ReviewService reviewService, ILogger<ReviewController> logger)
+        public ReviewController(ReviewService reviewService)
         {
             _reviewService = reviewService;
-            _logger = logger;
         }
 
         [HttpGet("book/{bookId}")]
-        public async Task<IActionResult> GetReviewsForBook(Guid bookId)
+        public async Task<IActionResult> GetReviewsForBook(System.Guid bookId)
         {
-            try
-            {
-                var reviews = await _reviewService.GetReviewsForBookAsync(bookId);
-                return Ok(ApiResponse<object>.SuccessResult(reviews));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting reviews for book {BookId}", bookId);
-                return BadRequest(ApiResponse.ErrorResult($"Error getting book reviews: {ex.Message}"));
-            }
+            var reviews = await _reviewService.GetReviewsForBookAsync(bookId);
+            return Ok(ApiResponse<object>.SuccessResult(reviews));
         }
 
         [HttpGet("my-reviews")]
         [Authorize]
         public async Task<IActionResult> GetMyReviews()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var reviews = await _reviewService.GetReviewsByUserAsync(userId);
-                return Ok(ApiResponse<object>.SuccessResult(reviews));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting current user's reviews");
-                return BadRequest(ApiResponse.ErrorResult($"Error getting your reviews: {ex.Message}"));
-            }
+            var user = await GetCurrentUserAsync();
+            var reviews = await _reviewService.GetReviewsByUserAsync(user.Id);
+            return Ok(ApiResponse<object>.SuccessResult(reviews));
         }
 
         [HttpPost]
         [Authorize]
         public async Task<IActionResult> CreateReview([FromBody] ReviewDto reviewDto)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var createdReview = await _reviewService.CreateReviewAsync(reviewDto, userId);
-                return Ok(ApiResponse<object>.SuccessResult(createdReview, "Review created successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating review");
-                return BadRequest(ApiResponse.ErrorResult($"Error creating review: {ex.Message}"));
-            }
+            var user = await GetCurrentUserAsync();
+            var createdReview = await _reviewService.CreateReviewAsync(reviewDto, user.Id);
+            return Ok(ApiResponse<object>.SuccessResult(createdReview));
         }
 
         [HttpPut("{id}")]
         [Authorize]
-        public async Task<IActionResult> UpdateReview(Guid id, [FromBody] ReviewDto reviewDto)
+        public async Task<IActionResult> UpdateReview(System.Guid id, [FromBody] ReviewDto reviewDto)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var updatedReview = await _reviewService.UpdateReviewAsync(id, reviewDto, userId);
+            var user = await GetCurrentUserAsync();
+            var updatedReview = await _reviewService.UpdateReviewAsync(id, reviewDto, user.Id);
 
-                if (updatedReview == null)
-                {
-                    return StatusCode(403, ApiResponse.ErrorResult("You are not authorized to update this review or it does not exist."));
-                }
+            if (updatedReview == null) return Forbid();
 
-                return Ok(ApiResponse<object>.SuccessResult(updatedReview, "Review updated successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating review {Id}", id);
-                return BadRequest(ApiResponse.ErrorResult($"Error updating review: {ex.Message}"));
-            }
+            return Ok(ApiResponse<object>.SuccessResult(updatedReview));
         }
 
         [HttpDelete("{id}")]
         [Authorize]
-        public async Task<IActionResult> DeleteReview(Guid id)
+        public async Task<IActionResult> DeleteReview(System.Guid id)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var success = await _reviewService.DeleteReviewAsync(id, userId);
+            var user = await GetCurrentUserAsync();
+            var success = await _reviewService.DeleteReviewAsync(id, user.Id);
 
-                if (!success)
-                {
-                    return StatusCode(403, ApiResponse.ErrorResult("You are not authorized to delete this review or it does not exist."));
-                }
+            if (!success) return Forbid();
 
-                return Ok(ApiResponse.SuccessResult("Review deleted successfully"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting review {Id}", id);
-                return BadRequest(ApiResponse.ErrorResult($"Error deleting review: {ex.Message}"));
-            }
+            return Ok(ApiResponse.SuccessResult("Review deleted."));
         }
     }
 }

@@ -5,19 +5,16 @@ using TaleTrail.API.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class AuthorService
     {
         private readonly AuthorDao _authorDao;
-        private readonly ILogger<AuthorService> _logger;
 
-        public AuthorService(AuthorDao authorDao, ILogger<AuthorService> logger)
+        public AuthorService(AuthorDao authorDao)
         {
             _authorDao = authorDao;
-            _logger = logger;
         }
 
         public async Task<List<Author>> GetAllAuthorsAsync(string? searchTerm = null)
@@ -32,11 +29,7 @@ namespace TaleTrail.API.Services
 
         public async Task<Author> AddAuthorAsync(AuthorDto authorDto)
         {
-            var author = new Author
-            {
-                Name = authorDto.Name
-            };
-
+            var author = new Author { Name = authorDto.Name };
             var createdAuthor = await _authorDao.AddAsync(author);
             if (createdAuthor == null)
             {
@@ -48,10 +41,7 @@ namespace TaleTrail.API.Services
         public async Task<Author?> UpdateAuthorAsync(Guid id, AuthorDto authorDto)
         {
             var existingAuthor = await _authorDao.GetByIdAsync(id);
-            if (existingAuthor == null)
-            {
-                return null; // Not found
-            }
+            if (existingAuthor == null) return null;
 
             existingAuthor.Name = authorDto.Name;
             return await _authorDao.UpdateAsync(existingAuthor);
@@ -60,10 +50,7 @@ namespace TaleTrail.API.Services
         public async Task<bool> DeleteAuthorAsync(Guid id)
         {
             var existingAuthor = await _authorDao.GetByIdAsync(id);
-            if (existingAuthor == null)
-            {
-                return false; // Not found
-            }
+            if (existingAuthor == null) return false;
 
             await _authorDao.DeleteAsync(id);
             return true;

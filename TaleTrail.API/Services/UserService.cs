@@ -2,11 +2,9 @@ using TaleTrail.API.DAO;
 using TaleTrail.API.Models;
 using TaleTrail.API.DTOs;
 using TaleTrail.API.DTOs.Profile;
-using TaleTrail.API.Exceptions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
@@ -16,15 +14,13 @@ namespace TaleTrail.API.Services
         private readonly UserBookDao _userBookDao;
         private readonly ReviewDao _reviewDao;
         private readonly BlogDao _blogDao;
-        private readonly ILogger<UserService> _logger;
 
-        public UserService(UserDao userDao, UserBookDao userBookDao, ReviewDao reviewDao, BlogDao blogDao, ILogger<UserService> logger)
+        public UserService(UserDao userDao, UserBookDao userBookDao, ReviewDao reviewDao, BlogDao blogDao)
         {
             _userDao = userDao;
             _userBookDao = userBookDao;
             _reviewDao = reviewDao;
             _blogDao = blogDao;
-            _logger = logger;
         }
 
         public async Task<User?> GetUserByIdAsync(Guid id)
@@ -35,10 +31,7 @@ namespace TaleTrail.API.Services
         public async Task<User?> UpdateUserAsync(Guid userId, UserDto userDto)
         {
             var existingUser = await _userDao.GetByIdAsync(userId);
-            if (existingUser == null)
-            {
-                return null; // Not found
-            }
+            if (existingUser == null) return null;
 
             existingUser.FullName = userDto.FullName;
             existingUser.Bio = userDto.Bio;
@@ -51,13 +44,8 @@ namespace TaleTrail.API.Services
         public async Task<bool> DeleteUserAsync(Guid userId)
         {
             var existingUser = await _userDao.GetByIdAsync(userId);
-            if (existingUser == null)
-            {
-                return false; // Not found
-            }
+            if (existingUser == null) return false;
 
-            // Important: You would also need logic here to delete the user from Supabase Auth.
-            // This requires using the Supabase Admin client, which is a more advanced setup.
             await _userDao.DeleteAsync(userId);
             return true;
         }
@@ -65,23 +53,12 @@ namespace TaleTrail.API.Services
         public async Task<PublicProfileDto?> GetPublicProfileByUsernameAsync(string username)
         {
             var user = await _userDao.GetByUsernameAsync(username);
-            if (user == null)
-            {
-                return null; // User not found
-            }
+            if (user == null) return null;
 
-            // Fetch all necessary data in parallel
-            var userBooksTask = _userBookDao.GetByUserIdAsync(user.Id);
-            var userReviewsTask = _reviewDao.GetByUserIdAsync(user.Id);
-            var userBlogsTask = _blogDao.GetAllAsync(user.Id);
+            var userBooks = await _userBookDao.GetByUserIdAsync(user.Id);
+            var userReviews = await _reviewDao.GetByUserIdAsync(user.Id);
+            var userBlogs = await _blogDao.GetAllAsync(user.Id);
 
-            await Task.WhenAll(userBooksTask, userReviewsTask, userBlogsTask);
-
-            var userBooks = await userBooksTask;
-            var userReviews = await userReviewsTask;
-            var userBlogs = await userBlogsTask;
-
-            // Calculate stats
             var stats = new UserStatsDto
             {
                 BooksCompleted = userBooks.Count(ub => ub.Status == "completed"),
@@ -91,8 +68,7 @@ namespace TaleTrail.API.Services
                 BlogsWritten = userBlogs.Count
             };
 
-            // Shape the response DTO
-            var profileDto = new PublicProfileDto
+            return new PublicProfileDto
             {
                 Username = user.Username,
                 FullName = user.FullName,
@@ -101,10 +77,16 @@ namespace TaleTrail.API.Services
                 Location = user.Location,
                 JoinedAt = user.CreatedAt,
                 Stats = stats,
-                // For simplicity, we're not including the book list here, but you could add it.
             };
+        }
 
-            return profileDto;
+        /// <summary>
+        /// A special method for creating a user directly from the BaseController's self-healing mechanism.
+        /// </summary>
+        public async Task<User?> CreateUserFromJwtAsync(User user)
+        {
+            // Simply pass the already-constructed user object to the DAO to be saved.
+            return await _userDao.AddAsync(user);
         }
     }
 }

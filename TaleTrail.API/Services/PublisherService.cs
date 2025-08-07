@@ -5,19 +5,16 @@ using TaleTrail.API.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class PublisherService
     {
         private readonly PublisherDao _publisherDao;
-        private readonly ILogger<PublisherService> _logger;
 
-        public PublisherService(PublisherDao publisherDao, ILogger<PublisherService> logger)
+        public PublisherService(PublisherDao publisherDao)
         {
             _publisherDao = publisherDao;
-            _logger = logger;
         }
 
         public async Task<List<Publisher>> GetAllPublishersAsync()
@@ -32,11 +29,7 @@ namespace TaleTrail.API.Services
 
         public async Task<Publisher> CreatePublisherAsync(PublisherDto publisherDto)
         {
-            var publisher = new Publisher
-            {
-                Name = publisherDto.Name
-            };
-
+            var publisher = new Publisher { Name = publisherDto.Name };
             var createdPublisher = await _publisherDao.AddAsync(publisher);
             if (createdPublisher == null)
             {
@@ -48,10 +41,7 @@ namespace TaleTrail.API.Services
         public async Task<Publisher?> UpdatePublisherAsync(Guid id, PublisherDto publisherDto)
         {
             var existingPublisher = await _publisherDao.GetByIdAsync(id);
-            if (existingPublisher == null)
-            {
-                return null; // Not found
-            }
+            if (existingPublisher == null) return null;
 
             existingPublisher.Name = publisherDto.Name;
             return await _publisherDao.UpdateAsync(existingPublisher);
@@ -60,10 +50,7 @@ namespace TaleTrail.API.Services
         public async Task<bool> DeletePublisherAsync(Guid id)
         {
             var existingPublisher = await _publisherDao.GetByIdAsync(id);
-            if (existingPublisher == null)
-            {
-                return false; // Not found
-            }
+            if (existingPublisher == null) return false;
 
             await _publisherDao.DeleteAsync(id);
             return true;

@@ -5,19 +5,16 @@ using TaleTrail.API.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace TaleTrail.API.Services
 {
     public class ReviewService
     {
         private readonly ReviewDao _reviewDao;
-        private readonly ILogger<ReviewService> _logger;
 
-        public ReviewService(ReviewDao reviewDao, ILogger<ReviewService> logger)
+        public ReviewService(ReviewDao reviewDao)
         {
             _reviewDao = reviewDao;
-            _logger = logger;
         }
 
         public async Task<List<Review>> GetReviewsForBookAsync(Guid bookId)
@@ -40,7 +37,6 @@ namespace TaleTrail.API.Services
                 Comment = reviewDto.Comment,
                 CreatedAt = DateTime.UtcNow
             };
-
             var createdReview = await _reviewDao.AddAsync(review);
             if (createdReview == null)
             {
@@ -52,39 +48,22 @@ namespace TaleTrail.API.Services
         public async Task<Review?> UpdateReviewAsync(Guid id, ReviewDto reviewDto, Guid userId)
         {
             var existingReview = await _reviewDao.GetByIdAsync(id);
-            if (existingReview == null)
+            if (existingReview == null || existingReview.UserId != userId)
             {
-                return null; // Not found
-            }
-
-            // Authorization check: Only allow the owner to update
-            if (existingReview.UserId != userId)
-            {
-                _logger.LogWarning("User {UserId} attempted to update review {ReviewId} owned by {OwnerId}", userId, id, existingReview.UserId);
                 return null;
             }
-
             existingReview.Rating = reviewDto.Rating;
             existingReview.Comment = reviewDto.Comment;
-
             return await _reviewDao.UpdateAsync(existingReview);
         }
 
         public async Task<bool> DeleteReviewAsync(Guid id, Guid userId)
         {
             var existingReview = await _reviewDao.GetByIdAsync(id);
-            if (existingReview == null)
+            if (existingReview == null || existingReview.UserId != userId)
             {
-                return false; // Not found
-            }
-
-            // Authorization check: Only allow the owner to delete
-            if (existingReview.UserId != userId)
-            {
-                _logger.LogWarning("User {UserId} attempted to delete review {ReviewId} owned by {OwnerId}", userId, id, existingReview.UserId);
                 return false;
             }
-
             await _reviewDao.DeleteAsync(id);
             return true;
         }
