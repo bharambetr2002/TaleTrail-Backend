@@ -22,32 +22,60 @@ public class UserBookController : BaseController
     [HttpGet("my-books")]
     public async Task<IActionResult> GetMyBooks()
     {
-        var userId = GetCurrentUserId();
-        var books = await _userBookService.GetUserBooksAsync(userId);
-        return Ok(ApiResponse<List<UserBookResponseDTO>>.SuccessResponse("Your books retrieved successfully", books));
+        try
+        {
+            var userId = GetCurrentUserId();
+            var books = await _userBookService.GetUserBooksAsync(userId);
+            return Ok(ApiResponse<List<UserBookResponseDTO>>.SuccessResponse($"Retrieved {books.Count} books from your library", books));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<List<UserBookResponseDTO>>.ErrorResponse($"Failed to retrieve your books: {ex.Message}"));
+        }
     }
 
     [HttpPost]
     public async Task<IActionResult> AddBook([FromBody] AddUserBookRequestDTO request)
     {
-        var userId = GetCurrentUserId();
-        var userBook = await _userBookService.AddBookToUserListAsync(userId, request);
-        return Ok(ApiResponse<UserBookResponseDTO>.SuccessResponse("Book added to your list", userBook));
+        try
+        {
+            var userId = GetCurrentUserId();
+            var userBook = await _userBookService.AddBookToUserListAsync(userId, request);
+            return Ok(ApiResponse<UserBookResponseDTO>.SuccessResponse("Book added to your library", userBook));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<UserBookResponseDTO>.ErrorResponse($"Failed to add book: {ex.Message}"));
+        }
     }
 
     [HttpPut("{bookId}")]
     public async Task<IActionResult> UpdateBook(Guid bookId, [FromBody] UpdateUserBookRequestDTO request)
     {
-        var userId = GetCurrentUserId();
-        var userBook = await _userBookService.UpdateUserBookAsync(userId, bookId, request);
-        return Ok(ApiResponse<UserBookResponseDTO>.SuccessResponse("Book status updated successfully", userBook));
+        try
+        {
+            var userId = GetCurrentUserId();
+            var userBook = await _userBookService.UpdateUserBookAsync(userId, bookId, request);
+            return Ok(ApiResponse<UserBookResponseDTO>.SuccessResponse("Book status updated successfully", userBook));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<UserBookResponseDTO>.ErrorResponse($"Failed to update book: {ex.Message}"));
+        }
     }
 
     [HttpDelete("{bookId}")]
     public async Task<IActionResult> RemoveBook(Guid bookId)
     {
-        var userId = GetCurrentUserId();
-        await _userBookService.RemoveBookFromUserListAsync(userId, bookId);
-        return Ok(ApiResponse<string?>.SuccessResponse("Book removed from your list", null));
+        try
+        {
+            var userId = GetCurrentUserId();
+            await _userBookService.RemoveBookFromUserListAsync(userId, bookId);
+            return Ok(ApiResponse<string?>.SuccessResponse("Book removed from your library", null));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<string?>.ErrorResponse($"Failed to remove book: {ex.Message}"));
+        }
     }
 }

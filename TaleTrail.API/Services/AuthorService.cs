@@ -1,4 +1,5 @@
 using TaleTrail.API.Model;
+using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.DAO;
 
 namespace TaleTrail.API.Services;
@@ -12,13 +13,28 @@ public class AuthorService
         _authorDao = authorDao;
     }
 
-    public async Task<List<Author>> GetAllAuthorsAsync()
+    public async Task<List<AuthorResponseDTO>> GetAllAuthorsAsync()
     {
-        return await _authorDao.GetAllAsync();
+        var authors = await _authorDao.GetAllAsync();
+        return authors.Select(MapToAuthorResponseDTO).ToList();
     }
 
-    public async Task<Author?> GetAuthorByIdAsync(Guid id)
+    public async Task<AuthorResponseDTO?> GetAuthorByIdAsync(Guid id)
     {
-        return await _authorDao.GetByIdAsync(id);
+        var author = await _authorDao.GetByIdAsync(id);
+        return author == null ? null : MapToAuthorResponseDTO(author);
+    }
+
+    private static AuthorResponseDTO MapToAuthorResponseDTO(Author author)
+    {
+        return new AuthorResponseDTO
+        {
+            Id = author.Id,
+            Name = author.Name,
+            Bio = author.Bio,
+            BirthDate = author.BirthDate,
+            DeathDate = author.DeathDate,
+            BookCount = 0 // TODO: Calculate book count if needed
+        };
     }
 }

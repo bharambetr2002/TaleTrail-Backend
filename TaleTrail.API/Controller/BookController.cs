@@ -19,24 +19,49 @@ public class BookController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] string? search = null)
     {
-        var books = await _bookService.GetAllBooksAsync(search);
-        return Ok(ApiResponse<List<BookResponseDTO>>.SuccessResponse("Books retrieved successfully", books));
+        try
+        {
+            var books = await _bookService.GetAllBooksAsync(search);
+            var message = string.IsNullOrEmpty(search)
+                ? "Books retrieved successfully"
+                : $"Found {books.Count} books matching '{search}'";
+
+            return Ok(ApiResponse<List<BookResponseDTO>>.SuccessResponse(message, books));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<List<BookResponseDTO>>.ErrorResponse($"Failed to retrieve books: {ex.Message}"));
+        }
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var book = await _bookService.GetBookByIdAsync(id);
-        if (book == null)
-            return NotFound(ApiResponse<BookResponseDTO>.ErrorResponse("Book not found"));
+        try
+        {
+            var book = await _bookService.GetBookByIdAsync(id);
+            if (book == null)
+                return NotFound(ApiResponse<BookResponseDTO>.ErrorResponse("Book not found"));
 
-        return Ok(ApiResponse<BookResponseDTO>.SuccessResponse("Book retrieved successfully", book));
+            return Ok(ApiResponse<BookResponseDTO>.SuccessResponse("Book retrieved successfully", book));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<BookResponseDTO>.ErrorResponse($"Failed to retrieve book: {ex.Message}"));
+        }
     }
 
     [HttpGet("by-author/{authorId}")]
     public async Task<IActionResult> GetByAuthor(Guid authorId)
     {
-        var books = await _bookService.GetBooksByAuthorAsync(authorId);
-        return Ok(ApiResponse<List<BookResponseDTO>>.SuccessResponse("Author's books retrieved successfully", books));
+        try
+        {
+            var books = await _bookService.GetBooksByAuthorAsync(authorId);
+            return Ok(ApiResponse<List<BookResponseDTO>>.SuccessResponse($"Found {books.Count} books by this author", books));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<List<BookResponseDTO>>.ErrorResponse($"Failed to retrieve author's books: {ex.Message}"));
+        }
     }
 }

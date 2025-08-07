@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
-using TaleTrail.API.Model;
 using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.Services;
 
@@ -22,49 +21,86 @@ public class BlogController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] Guid? userId = null)
     {
-        List<Blog> blogs;
-        if (userId.HasValue)
-            blogs = await _blogService.GetBlogsByUserIdAsync(userId.Value);
-        else
-            blogs = await _blogService.GetAllBlogsAsync();
+        try
+        {
+            var blogs = userId.HasValue
+                ? await _blogService.GetBlogsByUserIdAsync(userId.Value)
+                : await _blogService.GetAllBlogsAsync();
 
-        return Ok(ApiResponse<List<Blog>>.SuccessResponse("Fetched blogs", blogs));
+            var message = userId.HasValue
+                ? $"Retrieved {blogs.Count} blogs for user"
+                : $"Retrieved {blogs.Count} blogs";
+
+            return Ok(ApiResponse<List<BlogResponseDTO>>.SuccessResponse(message, blogs));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<List<BlogResponseDTO>>.ErrorResponse($"Failed to retrieve blogs: {ex.Message}"));
+        }
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var blog = await _blogService.GetBlogByIdAsync(id);
-        if (blog == null)
-            return NotFound(ApiResponse<Blog>.ErrorResponse("Blog not found"));
+        try
+        {
+            var blog = await _blogService.GetBlogByIdAsync(id);
+            if (blog == null)
+                return NotFound(ApiResponse<BlogResponseDTO>.ErrorResponse("Blog not found"));
 
-        return Ok(ApiResponse<Blog>.SuccessResponse("Fetched blog", blog));
+            return Ok(ApiResponse<BlogResponseDTO>.SuccessResponse("Blog retrieved successfully", blog));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<BlogResponseDTO>.ErrorResponse($"Failed to retrieve blog: {ex.Message}"));
+        }
     }
 
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Create([FromBody] CreateBlogRequest request)
     {
-        var userId = GetCurrentUserId();
-        var blog = await _blogService.CreateBlogAsync(userId, request);
-        return Ok(ApiResponse<Blog>.SuccessResponse("Blog created", blog));
+        try
+        {
+            var userId = GetCurrentUserId();
+            var blog = await _blogService.CreateBlogAsync(userId, request);
+            return Ok(ApiResponse<BlogResponseDTO>.SuccessResponse("Blog created successfully", blog));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<BlogResponseDTO>.ErrorResponse($"Failed to create blog: {ex.Message}"));
+        }
     }
 
     [HttpPut("{id}")]
     [Authorize]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateBlogRequest request)
     {
-        var userId = GetCurrentUserId();
-        var blog = await _blogService.UpdateBlogAsync(id, userId, request);
-        return Ok(ApiResponse<Blog>.SuccessResponse("Blog updated", blog));
+        try
+        {
+            var userId = GetCurrentUserId();
+            var blog = await _blogService.UpdateBlogAsync(id, userId, request);
+            return Ok(ApiResponse<BlogResponseDTO>.SuccessResponse("Blog updated successfully", blog));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<BlogResponseDTO>.ErrorResponse($"Failed to update blog: {ex.Message}"));
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var userId = GetCurrentUserId();
-        await _blogService.DeleteBlogAsync(id, userId);
-        return Ok(ApiResponse<string?>.SuccessResponse("Blog deleted", null));
+        try
+        {
+            var userId = GetCurrentUserId();
+            await _blogService.DeleteBlogAsync(id, userId);
+            return Ok(ApiResponse<string?>.SuccessResponse("Blog deleted successfully", null));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<string?>.ErrorResponse($"Failed to delete blog: {ex.Message}"));
+        }
     }
 }

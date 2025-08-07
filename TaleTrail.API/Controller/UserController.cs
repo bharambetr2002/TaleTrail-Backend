@@ -17,27 +17,32 @@ public class UserController : BaseController
     [HttpGet("profile")]
     public async Task<IActionResult> GetMyProfile()
     {
-        var user = await GetCurrentUserAsync();
-        var userDto = new UserResponseDTO
+        try
         {
-            Id = user.Id,
-            Email = user.Email,
-            FullName = user.FullName ?? "",
-            Username = user.Username,
-            Bio = user.Bio,
-            AvatarUrl = user.AvatarUrl,
-            CreatedAt = user.CreatedAt
-        };
+            var user = await GetCurrentUserAsync();
+            var userDto = UserService.MapToUserResponseDTO(user);
 
-        return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Profile retrieved successfully", userDto));
+            return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Profile retrieved successfully", userDto));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<UserResponseDTO>.ErrorResponse(ex.Message));
+        }
     }
 
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserRequestDTO request)
     {
-        var userId = GetCurrentUserId();
-        var updatedUser = await _userService.UpdateUserAsync(userId, request);
+        try
+        {
+            var userId = GetCurrentUserId();
+            var updatedUser = await _userService.UpdateUserAsync(userId, request);
 
-        return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Profile updated successfully", updatedUser));
+            return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Profile updated successfully", updatedUser));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<UserResponseDTO>.ErrorResponse(ex.Message));
+        }
     }
 }

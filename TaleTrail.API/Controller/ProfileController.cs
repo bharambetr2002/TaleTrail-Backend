@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
-using TaleTrail.API.Model;
 using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.Services;
 
@@ -20,23 +19,18 @@ public class ProfileController : ControllerBase
     [HttpGet("{username}")]
     public async Task<IActionResult> GetByUsername(string username)
     {
-        var user = await _userService.GetUserByUsernameAsync(username);
-        if (user == null)
-            return NotFound(ApiResponse<UserResponseDTO>.ErrorResponse("User not found"));
-
-        // Convert entity to DTO
-        var userDto = new UserResponseDTO
+        try
         {
-            Id = user.Id,
-            Email = user.Email,
-            FullName = user.FullName,
-            Username = user.Username,
-            Bio = user.Bio,
-            AvatarUrl = user.AvatarUrl,
-            CreatedAt = user.CreatedAt,
-            UpdatedAt = user.UpdatedAt
-        };
+            var user = await _userService.GetUserByUsernameAsync(username);
+            if (user == null)
+                return NotFound(ApiResponse<UserResponseDTO>.ErrorResponse("User not found"));
 
-        return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Fetched public profile", userDto));
+            var userDto = UserService.MapToUserResponseDTO(user);
+            return Ok(ApiResponse<UserResponseDTO>.SuccessResponse("Public profile retrieved successfully", userDto));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<UserResponseDTO>.ErrorResponse(ex.Message));
+        }
     }
 }

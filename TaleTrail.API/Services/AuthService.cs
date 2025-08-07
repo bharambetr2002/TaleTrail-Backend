@@ -1,4 +1,5 @@
 using TaleTrail.API.Model.DTOs;
+using TaleTrail.API.Services;
 using Supabase.Gotrue;
 
 namespace TaleTrail.API.Services;
@@ -30,15 +31,16 @@ public class AuthService
 
             return new AuthResponseDTO
             {
-                AccessToken = session.AccessToken ?? "",
-                RefreshToken = session.RefreshToken ?? "",
+                AccessToken = session.AccessToken ?? string.Empty,
+                RefreshToken = session.RefreshToken ?? string.Empty,
                 User = new UserResponseDTO
                 {
                     Id = Guid.Parse(session.User.Id),
-                    Email = session.User.Email ?? "",
+                    Email = session.User.Email ?? string.Empty,
                     FullName = request.FullName,
                     Username = request.Username,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 }
             };
         }
@@ -59,15 +61,16 @@ public class AuthService
 
             return new AuthResponseDTO
             {
-                AccessToken = session.AccessToken ?? "",
-                RefreshToken = session.RefreshToken ?? "",
+                AccessToken = session.AccessToken ?? string.Empty,
+                RefreshToken = session.RefreshToken ?? string.Empty,
                 User = new UserResponseDTO
                 {
                     Id = Guid.Parse(session.User.Id),
-                    Email = session.User.Email ?? "",
-                    FullName = session.User.UserMetadata?["full_name"]?.ToString() ?? "",
-                    Username = session.User.UserMetadata?["username"]?.ToString() ?? "",
-                    CreatedAt = DateTime.UtcNow
+                    Email = session.User.Email ?? string.Empty,
+                    FullName = session.User.UserMetadata?["full_name"]?.ToString() ?? string.Empty,
+                    Username = session.User.UserMetadata?["username"]?.ToString() ?? string.Empty,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 }
             };
         }

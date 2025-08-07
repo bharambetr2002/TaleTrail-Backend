@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
-using TaleTrail.API.Model;
 using TaleTrail.API.Services;
 
 namespace TaleTrail.API.Controllers;
@@ -22,23 +21,44 @@ public class BlogLikeController : BaseController
     [HttpPost("{blogId}")]
     public async Task<IActionResult> Like(Guid blogId)
     {
-        var userId = GetCurrentUserId();
-        var like = await _blogService.LikeBlogAsync(blogId, userId);
-        return Ok(ApiResponse<BlogLike>.SuccessResponse("Blog liked", like));
+        try
+        {
+            var userId = GetCurrentUserId();
+            await _blogService.LikeBlogAsync(blogId, userId);
+            return Ok(ApiResponse<string?>.SuccessResponse("Blog liked successfully", null));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<string?>.ErrorResponse($"Failed to like blog: {ex.Message}"));
+        }
     }
 
     [HttpDelete("{blogId}")]
     public async Task<IActionResult> Unlike(Guid blogId)
     {
-        var userId = GetCurrentUserId();
-        await _blogService.UnlikeBlogAsync(blogId, userId);
-        return Ok(ApiResponse<string?>.SuccessResponse("Blog unliked", null));
+        try
+        {
+            var userId = GetCurrentUserId();
+            await _blogService.UnlikeBlogAsync(blogId, userId);
+            return Ok(ApiResponse<string?>.SuccessResponse("Blog unliked successfully", null));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<string?>.ErrorResponse($"Failed to unlike blog: {ex.Message}"));
+        }
     }
 
     [HttpGet("{blogId}/count")]
     public async Task<IActionResult> GetLikeCount(Guid blogId)
     {
-        var count = await _blogService.GetLikeCountAsync(blogId);
-        return Ok(ApiResponse<int>.SuccessResponse("Fetched like count", count));
+        try
+        {
+            var count = await _blogService.GetLikeCountAsync(blogId);
+            return Ok(ApiResponse<int>.SuccessResponse("Like count retrieved successfully", count));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<int>.ErrorResponse($"Failed to get like count: {ex.Message}"));
+        }
     }
 }

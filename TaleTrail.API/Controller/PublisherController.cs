@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
-using TaleTrail.API.Model;
+using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.Services;
 
 namespace TaleTrail.API.Controllers;
@@ -19,17 +19,31 @@ public class PublisherController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var publishers = await _publisherService.GetAllPublishersAsync();
-        return Ok(ApiResponse<List<Publisher>>.SuccessResponse("Fetched all publishers", publishers));
+        try
+        {
+            var publishers = await _publisherService.GetAllPublishersAsync();
+            return Ok(ApiResponse<List<PublisherResponseDTO>>.SuccessResponse($"Retrieved {publishers.Count} publishers", publishers));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<List<PublisherResponseDTO>>.ErrorResponse($"Failed to retrieve publishers: {ex.Message}"));
+        }
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var publisher = await _publisherService.GetPublisherByIdAsync(id);
-        if (publisher == null)
-            return NotFound(ApiResponse<Publisher>.ErrorResponse("Publisher not found"));
+        try
+        {
+            var publisher = await _publisherService.GetPublisherByIdAsync(id);
+            if (publisher == null)
+                return NotFound(ApiResponse<PublisherResponseDTO>.ErrorResponse("Publisher not found"));
 
-        return Ok(ApiResponse<Publisher>.SuccessResponse("Fetched publisher", publisher));
+            return Ok(ApiResponse<PublisherResponseDTO>.SuccessResponse("Publisher retrieved successfully", publisher));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<PublisherResponseDTO>.ErrorResponse($"Failed to retrieve publisher: {ex.Message}"));
+        }
     }
 }
