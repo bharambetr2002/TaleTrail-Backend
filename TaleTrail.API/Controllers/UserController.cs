@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using TaleTrail.API.Services;
-using TaleTrail.API.DTOs; // Make sure this line is included
+using TaleTrail.API.DTOs;
 using TaleTrail.API.Helpers;
 using System.Threading.Tasks;
 
@@ -22,11 +22,8 @@ namespace TaleTrail.API.Controllers
         [HttpGet("profile/my-profile")]
         public async Task<IActionResult> GetMyProfile()
         {
-            var user = await GetCurrentUserAsync(); // This gets the full User model from the database
+            var user = await GetCurrentUserAsync();
 
-            // --- THE FIX ---
-            // We now convert the complex User model into our simple UserResponseDTO
-            // before sending it back as JSON.
             var userResponse = new UserResponseDTO
             {
                 Id = user.Id,
@@ -36,15 +33,13 @@ namespace TaleTrail.API.Controllers
                 Bio = user.Bio,
                 AvatarUrl = user.AvatarUrl,
                 Location = user.Location,
-                Role = user.Role,
+                // Role = user.Role, // <-- This line is now removed
                 CreatedAt = user.CreatedAt
             };
-            // -----------------
 
             return Ok(ApiResponse<object>.SuccessResult(userResponse));
         }
 
-        // We'll update the other methods for consistency as well.
         [HttpPut("profile/my-profile")]
         public async Task<IActionResult> UpdateMyProfile([FromBody] UserDto userDto)
         {
@@ -60,7 +55,7 @@ namespace TaleTrail.API.Controllers
                 Bio = updatedUser.Bio,
                 AvatarUrl = updatedUser.AvatarUrl,
                 Location = updatedUser.Location,
-                Role = updatedUser.Role,
+                // Role = updatedUser.Role, // <-- This line is now removed
                 CreatedAt = updatedUser.CreatedAt
             };
 

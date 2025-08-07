@@ -28,9 +28,6 @@ namespace TaleTrail.API.Models
         [Column("location")]
         public string? Location { get; set; }
 
-        [Column("role")]
-        public string Role { get; set; } = "user";
-
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
     }

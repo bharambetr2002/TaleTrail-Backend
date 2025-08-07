@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using TaleTrail.API.Services;
-using TaleTrail.API.DTOs;
 using TaleTrail.API.Helpers;
 using System;
 using System.Threading.Tasks;
+using System.Linq; // Add this for .Select()
+using TaleTrail.API.DTOs; // Add this
 
 namespace TaleTrail.API.Controllers
 {
@@ -13,22 +13,31 @@ namespace TaleTrail.API.Controllers
     public class BookController : BaseController
     {
         private readonly BookService _bookService;
-        // This is where the ILogger was, but we've removed it for simplicity.
-        // It's good practice to add it back later for production code.
+
         public BookController(BookService bookService)
         {
             _bookService = bookService;
         }
 
-        // GET: api/book
         [HttpGet]
         public async Task<IActionResult> GetAllBooks([FromQuery] string? search = null)
         {
             var books = await _bookService.GetAllBooksAsync(search);
-            return Ok(ApiResponse<object>.SuccessResult(books));
+
+            // --- THE FIX ---
+            // Convert the list of Book models to a list of clean BookResponseDTOs
+            var bookDtos = books.Select(b => new BookResponseDTO
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Description = b.Description,
+                PublicationYear = b.PublicationYear
+            }).ToList();
+            // -----------------
+
+            return Ok(ApiResponse<object>.SuccessResult(bookDtos));
         }
 
-        // GET: api/book/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetBookById(Guid id)
         {
@@ -37,42 +46,16 @@ namespace TaleTrail.API.Controllers
             {
                 return NotFound(ApiResponse.ErrorResult("Book not found"));
             }
-            return Ok(ApiResponse<object>.SuccessResult(book));
-        }
 
-        // POST: api/book
-        [HttpPost]
-        [Authorize(Roles = "admin")]
-        public async Task<IActionResult> CreateBook([FromBody] BookDto bookDto)
-        {
-            var book = await _bookService.CreateBookAsync(bookDto);
-            return CreatedAtAction(nameof(GetBookById), new { id = book.Id }, ApiResponse<object>.SuccessResult(book, "Book created."));
-        }
-
-        // PUT: api/book/{id}
-        [HttpPut("{id}")]
-        [Authorize(Roles = "admin")]
-        public async Task<IActionResult> UpdateBook(Guid id, [FromBody] BookDto bookDto)
-        {
-            var book = await _bookService.UpdateBookAsync(id, bookDto);
-            if (book == null)
+            var bookDto = new BookResponseDTO
             {
-                return NotFound(ApiResponse.ErrorResult("Book not found"));
-            }
-            return Ok(ApiResponse<object>.SuccessResult(book, "Book updated."));
-        }
+                Id = book.Id,
+                Title = book.Title,
+                Description = book.Description,
+                PublicationYear = book.PublicationYear
+            };
 
-        // DELETE: api/book/{id}
-        [HttpDelete("{id}")]
-        [Authorize(Roles = "admin")]
-        public async Task<IActionResult> DeleteBook(Guid id)
-        {
-            var success = await _bookService.DeleteBookAsync(id);
-            if (!success)
-            {
-                return NotFound(ApiResponse.ErrorResult("Book not found"));
-            }
-            return Ok(ApiResponse.SuccessResult("Book deleted."));
+            return Ok(ApiResponse<object>.SuccessResult(bookDto));
         }
     }
 }
