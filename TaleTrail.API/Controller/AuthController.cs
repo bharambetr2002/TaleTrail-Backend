@@ -17,30 +17,30 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("signup")]
-    public async Task<IActionResult> SignUp(SignupRequest request)
+    public async Task<IActionResult> SignUp(SignupRequestDTO request)
     {
         try
         {
             var response = await _authService.SignUpAsync(request);
-            return Ok(ApiResponse<AuthResponse>.SuccessResponse("User created successfully", response));
+            return Ok(ApiResponse<AuthResponseDTO>.SuccessResponse("Account created successfully", response));
         }
         catch (Exception ex)
         {
-            return BadRequest(ApiResponse<AuthResponse>.ErrorResponse(ex.Message));
+            return BadRequest(ApiResponse<AuthResponseDTO>.ErrorResponse(ex.Message));
         }
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginRequest request)
+    public async Task<IActionResult> Login(LoginRequestDTO request)
     {
         try
         {
             var response = await _authService.LoginAsync(request);
-            return Ok(ApiResponse<AuthResponse>.SuccessResponse("Login successful", response));
+            return Ok(ApiResponse<AuthResponseDTO>.SuccessResponse("Login successful", response));
         }
         catch (Exception ex)
         {
-            return BadRequest(ApiResponse<AuthResponse>.ErrorResponse(ex.Message));
+            return BadRequest(ApiResponse<AuthResponseDTO>.ErrorResponse(ex.Message));
         }
     }
 }

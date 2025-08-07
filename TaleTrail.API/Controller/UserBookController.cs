@@ -1,14 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaleTrail.API.Helpers;
-using TaleTrail.API.Model;
 using TaleTrail.API.Model.DTOs;
 using TaleTrail.API.Services;
 
 namespace TaleTrail.API.Controllers;
 
 [ApiController]
-[Route("api/user-book")]
+[Route("api/[controller]")]
 [Authorize]
 public class UserBookController : BaseController
 {
@@ -20,28 +19,28 @@ public class UserBookController : BaseController
         _userBookService = userBookService;
     }
 
-    [HttpGet("my-list")]
+    [HttpGet("my-books")]
     public async Task<IActionResult> GetMyBooks()
     {
         var userId = GetCurrentUserId();
         var books = await _userBookService.GetUserBooksAsync(userId);
-        return Ok(ApiResponse<List<UserBook>>.SuccessResponse("Fetched user books", books));
+        return Ok(ApiResponse<List<UserBookResponseDTO>>.SuccessResponse("Your books retrieved successfully", books));
     }
 
     [HttpPost]
-    public async Task<IActionResult> AddBook([FromBody] AddUserBookRequest request)
+    public async Task<IActionResult> AddBook([FromBody] AddUserBookRequestDTO request)
     {
         var userId = GetCurrentUserId();
         var userBook = await _userBookService.AddBookToUserListAsync(userId, request);
-        return Ok(ApiResponse<UserBook>.SuccessResponse("Book added to list", userBook));
+        return Ok(ApiResponse<UserBookResponseDTO>.SuccessResponse("Book added to your list", userBook));
     }
 
     [HttpPut("{bookId}")]
-    public async Task<IActionResult> UpdateBook(Guid bookId, [FromBody] UpdateUserBookRequest request)
+    public async Task<IActionResult> UpdateBook(Guid bookId, [FromBody] UpdateUserBookRequestDTO request)
     {
         var userId = GetCurrentUserId();
         var userBook = await _userBookService.UpdateUserBookAsync(userId, bookId, request);
-        return Ok(ApiResponse<UserBook>.SuccessResponse("Book updated", userBook));
+        return Ok(ApiResponse<UserBookResponseDTO>.SuccessResponse("Book status updated successfully", userBook));
     }
 
     [HttpDelete("{bookId}")]
@@ -49,6 +48,6 @@ public class UserBookController : BaseController
     {
         var userId = GetCurrentUserId();
         await _userBookService.RemoveBookFromUserListAsync(userId, bookId);
-        return Ok(ApiResponse<string?>.SuccessResponse("Book removed from list", null));
+        return Ok(ApiResponse<string?>.SuccessResponse("Book removed from your list", null));
     }
 }

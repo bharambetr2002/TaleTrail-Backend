@@ -9,37 +9,32 @@ using TaleTrail.API.Services;
 using TaleTrail.API.Extensions;
 using TaleTrail.API.Middleware;
 using Serilog;
-using TaleTrail.API.Model;
-
 
 var builder = WebApplication.CreateBuilder(args);
-
 
 // Load environment variables
 DotNetEnv.Env.Load();
 
-// Configure Serilog
+// Configure logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .WriteTo.Console()
-    .WriteTo.File("logs/taletrail-.txt",
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 7)
+    .WriteTo.File("logs/taletrail-.txt", rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
 builder.Host.UseSerilog();
 
-// Add services to the container
+// Add services
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Configure JSON serialization
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.WriteIndented = false;
-        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+        options.JsonSerializerOptions.DefaultIgnoreCondition =
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
 
-// Configure CORS
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -54,55 +49,36 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register SupabaseService (Singleton) - IMPORTANT: Add ILogger<SupabaseService>
-builder.Services.AddSingleton<SupabaseService>(provider =>
-{
-    var logger = provider.GetRequiredService<ILogger<SupabaseService>>();
-    return new SupabaseService(logger);
-});
+// Register Supabase service
+builder.Services.AddSingleton<SupabaseService>();
 
-// Register all DAOs (Scoped) - All now require ILogger
-builder.Services.AddScoped<AuthorDao>(provider =>
-{
-    var supabaseService = provider.GetRequiredService<SupabaseService>();
-    var logger = provider.GetRequiredService<ILogger<AuthorDao>>();
-    return new AuthorDao(supabaseService, logger);
-});
-
-builder.Services.AddScoped<BlogDao>();
-builder.Services.AddScoped<BlogLikeDao>();
-
-builder.Services.AddScoped<BookDao>(provider =>
-{
-    var supabaseService = provider.GetRequiredService<SupabaseService>();
-    var logger = provider.GetRequiredService<ILogger<BookDao>>();
-    return new BookDao(supabaseService, logger);
-});
-
+// Register DAOs
+builder.Services.AddScoped<AuthorDao>();
+builder.Services.AddScoped<BookDao>();
 builder.Services.AddScoped<PublisherDao>();
 builder.Services.AddScoped<ReviewDao>();
 builder.Services.AddScoped<UserBookDao>();
 builder.Services.AddScoped<UserDao>();
+builder.Services.AddScoped<BlogDao>();
+builder.Services.AddScoped<BlogLikeDao>();
 
-// Register all Services (Scoped)
+// Register Services
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AuthorService>();
-builder.Services.AddScoped<BlogService>();
 builder.Services.AddScoped<BookService>();
 builder.Services.AddScoped<PublisherService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<UserBookService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<BlogService>();
 
 // Register DataSeeder
 builder.Services.AddScoped<DataSeeder>();
 
-// Configure JWT Authentication
+// Configure JWT
 var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
 if (string.IsNullOrEmpty(jwtSecret))
-{
-    throw new InvalidOperationException("SUPABASE_JWT_SECRET environment variable is missing.");
-}
+    throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -114,40 +90,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero,
-            RequireExpirationTime = true
-        };
-
-        options.Events = new JwtBearerEvents
-        {
-            OnAuthenticationFailed = context =>
-            {
-                Log.Warning("JWT Authentication failed: {Exception}", context.Exception.Message);
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = context =>
-            {
-                var userId = context.Principal?.FindFirst("sub")?.Value;
-                Log.Information("JWT Token validated for user: {UserId}", userId);
-                return Task.CompletedTask;
-            }
+            ClockSkew = TimeSpan.Zero
         };
     });
 
-// Add Authorization policies
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("AuthenticatedUser", policy =>
-        policy.RequireAuthenticatedUser());
-});
+builder.Services.AddAuthorization();
 
-
-// Add Health Checks
+// Health checks
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy())
     .AddCheck<SupabaseHealthCheck>("supabase");
 
-// Configure Swagger/OpenAPI
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -155,23 +109,12 @@ builder.Services.AddSwaggerGen(options =>
     {
         Version = "v1",
         Title = "TaleTrail API",
-        Description = "A social book tracking application API built with .NET 8 and Supabase",
-        Contact = new OpenApiContact
-        {
-            Name = "TaleTrail Team",
-            Email = "support@taletrail.com"
-        },
-        License = new OpenApiLicense
-        {
-            Name = "MIT License",
-            Url = new Uri("https://opensource.org/licenses/MIT")
-        }
+        Description = "A clean, simple book tracking API"
     });
 
-    // Add JWT Authentication to Swagger
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Description = "JWT Authorization header using Bearer scheme",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
@@ -193,157 +136,46 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
-
-    // Include XML comments if available
-    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        options.IncludeXmlComments(xmlPath);
-    }
-
-    // Group endpoints by tags
-    options.TagActionsBy(api => new[] { api.GroupName ?? api.ActionDescriptor.RouteValues["controller"] ?? "Default" });
-    options.DocInclusionPredicate((name, api) => true);
-});
-
-// Add response compression
-builder.Services.AddResponseCompression(options =>
-{
-    options.EnableForHttps = true;
-});
-
-// Configure rate limiting (if needed)
-builder.Services.AddRateLimiter(options =>
-{
-    options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(
-        httpContext => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.User?.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
-            factory: partition => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1)
-            }));
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-
-// Security Headers Middleware
-app.Use(async (context, next) =>
-{
-    context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
-    context.Response.Headers.Add("X-Frame-Options", "DENY");
-    context.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
-    context.Response.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
-
-    // Remove Server header
-    context.Response.Headers.Remove("Server");
-
-    await next();
-});
-
-// Global Exception Handler
+// Configure pipeline
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-// Enable response compression
-app.UseResponseCompression();
-
-// HTTPS Redirection (comment out for development if needed)
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
-
-// Configure Swagger for development and staging
-if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaleTrail API V1");
-        c.RoutePrefix = string.Empty; // Makes Swagger available at the root
-        c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
-        c.DisplayRequestDuration();
+        c.RoutePrefix = string.Empty;
     });
 }
 
-// CORS
 app.UseCors();
-
-// Rate Limiting
-app.UseRateLimiter();
-
-// Authentication & Authorization (order matters!)
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health Checks
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    ResponseWriter = async (context, report) =>
-    {
-        var response = new
-        {
-            status = report.Status.ToString(),
-            checks = report.Entries.Select(entry => new
-            {
-                name = entry.Key,
-                status = entry.Value.Status.ToString(),
-                exception = entry.Value.Exception?.Message,
-                duration = entry.Value.Duration.ToString()
-            })
-        };
+// Health checks
+app.MapHealthChecks("/health");
 
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
-    }
-});
-
-// Map Controllers
 app.MapControllers();
 
-// Test database connection before seeding
+// Seed data
 using (var scope = app.Services.CreateScope())
 {
     try
     {
-        Log.Information("🔍 Testing database connection...");
-        var supabaseService = scope.ServiceProvider.GetRequiredService<SupabaseService>();
-
-        // Test connection with a simple query
-        var testResponse = await supabaseService.Supabase.From<Author>().Limit(1).Get();
-        Log.Information("✅ Database connection test successful");
-
-        Log.Information("🌱 Starting database seeding...");
         var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
         await seeder.SeedAsync();
-        Log.Information("✅ Database seeding completed");
+        Log.Information("Database seeding completed");
     }
     catch (Exception ex)
     {
-        Log.Error(ex, "❌ Database connection or seeding failed");
-        // Don't throw - let the app start even if seeding fails in production
-        if (app.Environment.IsDevelopment())
-        {
-            throw;
-        }
+        Log.Error(ex, "Database seeding failed");
     }
 }
 
-Log.Information("🚀 TaleTrail API is starting...");
-
-try
-{
-    app.Run();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "💥 Application terminated unexpectedly");
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+Log.Information("TaleTrail API is running!");
+app.Run();

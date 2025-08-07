@@ -1,4 +1,3 @@
-using TaleTrail.API.Model;
 using TaleTrail.API.Model.DTOs;
 using Supabase.Gotrue;
 
@@ -13,37 +12,33 @@ public class AuthService
         _supabaseService = supabaseService;
     }
 
-    public async Task<AuthResponse> SignUpAsync(SignupRequest request)
+    public async Task<AuthResponseDTO> SignUpAsync(SignupRequestDTO request)
     {
         try
         {
-            // Validation code stays the same...
-
             var session = await _supabaseService.Supabase.Auth.SignUp(request.Email, request.Password, new SignUpOptions
             {
                 Data = new Dictionary<string, object>
-            {
-                { "full_name", request.FullName ?? "" },
-                { "username", request.Username }
-            }
+                {
+                    { "full_name", request.FullName },
+                    { "username", request.Username }
+                }
             });
 
             if (session?.User == null)
-                throw new InvalidOperationException("Failed to create user account");
+                throw new InvalidOperationException("Failed to create account");
 
-            // Return DTO instead of entity
-            return new AuthResponse
+            return new AuthResponseDTO
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = new UserResponseDTO  // Changed here
+                User = new UserResponseDTO
                 {
                     Id = Guid.Parse(session.User.Id),
                     Email = session.User.Email ?? "",
                     FullName = request.FullName,
                     Username = request.Username,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow
                 }
             };
         }
@@ -53,30 +48,26 @@ public class AuthService
         }
     }
 
-    public async Task<AuthResponse> LoginAsync(LoginRequest request)
+    public async Task<AuthResponseDTO> LoginAsync(LoginRequestDTO request)
     {
         try
         {
-            // Validation code stays the same...
-
             var session = await _supabaseService.Supabase.Auth.SignIn(request.Email, request.Password);
 
             if (session?.User == null)
                 throw new UnauthorizedAccessException("Invalid email or password");
 
-            // Return DTO instead of entity
-            return new AuthResponse
+            return new AuthResponseDTO
             {
                 AccessToken = session.AccessToken ?? "",
                 RefreshToken = session.RefreshToken ?? "",
-                User = new UserResponseDTO  // Changed here
+                User = new UserResponseDTO
                 {
                     Id = Guid.Parse(session.User.Id),
                     Email = session.User.Email ?? "",
                     FullName = session.User.UserMetadata?["full_name"]?.ToString() ?? "",
                     Username = session.User.UserMetadata?["username"]?.ToString() ?? "",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow
                 }
             };
         }

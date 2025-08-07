@@ -2,44 +2,31 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TaleTrail.API.Model.DTOs;
 
-public class SignupRequest
+public class SignupRequestDTO
 {
     [Required(ErrorMessage = "Email is required")]
-    [EmailAddress(ErrorMessage = "Please enter a valid email address")]
-    [MaxLength(255, ErrorMessage = "Email cannot exceed 255 characters")]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password is required")]
-    [MinLength(8, ErrorMessage = "Password must be at least 8 characters long")]
+    [MinLength(8)]
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Full name is required")]
-    [MaxLength(100, ErrorMessage = "Full name cannot exceed 100 characters")]
+    [MaxLength(100)]
     public string FullName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Username is required")]
-    [MaxLength(50, ErrorMessage = "Username cannot exceed 50 characters")]
-    [MinLength(3, ErrorMessage = "Username must be at least 3 characters long")]
-    [RegularExpression(@"^[a-zA-Z0-9_]+$", ErrorMessage = "Username can only contain letters, numbers, and underscores")]
+    [MaxLength(50)]
     public string Username { get; set; } = string.Empty;
 }
 
-public class LoginRequest
+public class LoginRequestDTO
 {
-    [Required(ErrorMessage = "Email is required")]
-    [EmailAddress(ErrorMessage = "Please enter a valid email address")]
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Password is required")]
-    [MinLength(1, ErrorMessage = "Password is required")]
+    [Required]
     public string Password { get; set; } = string.Empty;
-}
-
-// REPLACE this in Model/DTOs/AuthDTOs.cs:
-
-public class AuthResponse
-{
-    public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
-    public UserResponseDTO User { get; set; } = new();  // Changed from User to UserResponseDTO
 }

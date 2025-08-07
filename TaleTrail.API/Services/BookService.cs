@@ -1,131 +1,92 @@
 using TaleTrail.API.DAO;
 using TaleTrail.API.Model;
+using TaleTrail.API.Model.DTOs;
 
 namespace TaleTrail.API.Services;
 
-/// <summary>
-/// Service for handling book-related business logic
-/// </summary>
 public class BookService
 {
     private readonly BookDao _bookDao;
-    private readonly ILogger<BookService> _logger;
+    private readonly AuthorDao _authorDao;
+    private readonly PublisherDao _publisherDao;
 
-    public BookService(BookDao bookDao, ILogger<BookService> logger)
+    public BookService(BookDao bookDao, AuthorDao authorDao, PublisherDao publisherDao)
     {
         _bookDao = bookDao;
-        _logger = logger;
+        _authorDao = authorDao;
+        _publisherDao = publisherDao;
     }
 
-    /// <summary>
-    /// Get all books from the catalog
-    /// </summary>
-    /// <returns>List of all books</returns>
-    public async Task<List<Book>> GetAllBooksAsync()
+    public async Task<List<BookResponseDTO>> GetAllBooksAsync(string? search = null)
     {
-        try
+        var books = string.IsNullOrWhiteSpace(search)
+            ? await _bookDao.GetAllAsync()
+            : await _bookDao.SearchByTitleAsync(search);
+
+        var bookDtos = new List<BookResponseDTO>();
+
+        foreach (var book in books)
         {
-            _logger.LogDebug("Retrieving all books from catalog");
-            return await _bookDao.GetAllAsync();
+            var bookDto = await MapToBookResponseDTO(book);
+            bookDtos.Add(bookDto);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving all books");
-            throw new InvalidOperationException("Failed to retrieve books", ex);
-        }
+
+        return bookDtos;
     }
 
-    /// <summary>
-    /// Get a specific book by its ID
-    /// </summary>
-    /// <param name="id">Book ID</param>
-    /// <returns>Book if found, null otherwise</returns>
-    public async Task<Book?> GetBookByIdAsync(Guid id)
+    public async Task<BookResponseDTO?> GetBookByIdAsync(Guid id)
     {
-        try
-        {
-            _logger.LogDebug("Retrieving book with ID: {BookId}", id);
-            return await _bookDao.GetByIdAsync(id);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving book with ID: {BookId}", id);
-            throw new InvalidOperationException($"Failed to retrieve book with ID: {id}", ex);
-        }
+        var book = await _bookDao.GetByIdAsync(id);
+        if (book == null) return null;
+
+        return await MapToBookResponseDTO(book);
     }
 
-    /// <summary>
-    /// Search books by title
-    /// </summary>
-    /// <param name="searchTerm">Search term to match against book titles</param>
-    /// <returns>List of books matching the search term</returns>
-    public async Task<List<Book>> SearchBooksAsync(string searchTerm)
+    public async Task<List<BookResponseDTO>> GetBooksByAuthorAsync(Guid authorId)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(searchTerm))
-                return new List<Book>();
+        var books = await _bookDao.GetByAuthorIdAsync(authorId);
+        var bookDtos = new List<BookResponseDTO>();
 
-            _logger.LogDebug("Searching books with term: {SearchTerm}", searchTerm);
-            return await _bookDao.SearchByTitleAsync(searchTerm);
-        }
-        catch (Exception ex)
+        foreach (var book in books)
         {
-            _logger.LogError(ex, "Error searching books with term: {SearchTerm}", searchTerm);
-            throw new InvalidOperationException($"Failed to search books with term: {searchTerm}", ex);
+            var bookDto = await MapToBookResponseDTO(book);
+            bookDtos.Add(bookDto);
         }
+
+        return bookDtos;
     }
 
-    /// <summary>
-    /// Advanced search for books by multiple criteria
-    /// </summary>
-    public async Task<List<Book>> SearchBooksAdvancedAsync(string? title, string? author, string? language, int? yearFrom, int? yearTo)
+    private async Task<BookResponseDTO> MapToBookResponseDTO(Book book)
     {
-        try
+        var bookDto = new BookResponseDTO
         {
-            _logger.LogDebug("Advanced book search - Title: {Title}, Author: {Author}, Language: {Language}, Years: {YearFrom}-{YearTo}",
-                title, author, language, yearFrom, yearTo);
+            Id = book.Id,
+            Title = book.Title,
+            Description = book.Description,
+            Language = book.Language,
+            CoverImageUrl = book.CoverImageUrl,
+            PublicationYear = book.PublicationYear,
+            PublisherId = book.PublisherId
+        };
 
-            var allBooks = await _bookDao.GetAllAsync();
-
-            // Apply filters
-            var filteredBooks = allBooks.AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(title))
-                filteredBooks = filteredBooks.Where(b => b.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
-
-            if (!string.IsNullOrWhiteSpace(language))
-                filteredBooks = filteredBooks.Where(b => b.Language != null && b.Language.Contains(language, StringComparison.OrdinalIgnoreCase));
-
-            if (yearFrom.HasValue)
-                filteredBooks = filteredBooks.Where(b => b.PublicationYear >= yearFrom);
-
-            if (yearTo.HasValue)
-                filteredBooks = filteredBooks.Where(b => b.PublicationYear <= yearTo);
-
-            return filteredBooks.ToList();
-        }
-        catch (Exception ex)
+        // Get publisher name if exists
+        if (book.PublisherId.HasValue)
         {
-            _logger.LogError(ex, "Error in advanced book search");
-            throw new InvalidOperationException("Failed to perform advanced book search", ex);
+            var publisher = await _publisherDao.GetByIdAsync(book.PublisherId.Value);
+            bookDto.PublisherName = publisher?.Name;
         }
-    }
 
-    /// <summary>
-    /// Get books by author ID using the junction table
-    /// </summary>
-    public async Task<List<Book>> GetBooksByAuthorAsync(Guid authorId)
-    {
-        try
+        // Get authors
+        var authors = await _authorDao.GetByBookIdAsync(book.Id);
+        bookDto.Authors = authors.Select(a => new AuthorResponseDTO
         {
-            _logger.LogDebug("Retrieving books by author ID: {AuthorId}", authorId);
-            return await _bookDao.GetByAuthorIdAsync(authorId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving books by author ID: {AuthorId}", authorId);
-            throw new InvalidOperationException($"Failed to retrieve books by author: {authorId}", ex);
-        }
+            Id = a.Id,
+            Name = a.Name,
+            Bio = a.Bio,
+            BirthDate = a.BirthDate,
+            DeathDate = a.DeathDate
+        }).ToList();
+
+        return bookDto;
     }
 }
