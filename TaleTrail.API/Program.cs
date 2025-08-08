@@ -34,13 +34,17 @@ builder.Services.AddControllers()
             System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
 
-// Configure CORS
+// Configure CORS for specific origins
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
+        // Your specific allowed origins
         var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',')
-            ?? new[] { "http://localhost:3000", "http://localhost:5173" };
+            ?? new[] {
+                "https://preview--talesmith-frontend.lovable.app",
+                "http://localhost:8080"
+            };
 
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
@@ -137,19 +141,48 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// Middlewares
+// Middlewares - CORS should be early in the pipeline
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
+// Enable Swagger in all environments for now (you can restrict later)
 app.UseSwagger();
 app.UseSwaggerUI();
 
-
+// CORS must come before Authentication and Authorization
 app.UseCors();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
+
+// Add CORS headers to all responses (additional safety net)
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers["Origin"].ToString();
+    var allowedOrigins = new[] {
+        "https://preview--talesmith-frontend.lovable.app",
+        "http://localhost:8080"
+    };
+
+    if (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
+    {
+        context.Response.Headers.Add("Access-Control-Allow-Origin", origin);
+        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        context.Response.Headers.Add("Access-Control-Allow-Headers", "*");
+        context.Response.Headers.Add("Access-Control-Allow-Methods", "*");
+    }
+
+    // Handle preflight requests
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        return;
+    }
+
+    await next();
+});
 
 // Seed data
 using (var scope = app.Services.CreateScope())
