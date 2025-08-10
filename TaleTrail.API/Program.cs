@@ -24,7 +24,7 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// Configure controllers with JSON options
+// Controllers with JSON options
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -34,22 +34,18 @@ builder.Services.AddControllers()
             System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
 
-// Configure CORS for specific origins
+// CORS configuration
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
+    options.AddPolicy("AllowSpecificOrigins", policy =>
     {
-        // Your specific allowed origins
-        var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',')
-            ?? new[] {
-                "https://taletrail-app.netlify.app",
-                "http://localhost:8080"
-            };
-
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy.WithOrigins(
+            "https://taletrail-app.netlify.app",
+            "http://localhost:8080"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
@@ -76,7 +72,7 @@ builder.Services.AddScoped<BlogService>();
 
 builder.Services.AddScoped<DataSeeder>();
 
-// Configure JWT authentication
+// JWT authentication
 var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET");
 if (string.IsNullOrEmpty(jwtSecret))
     throw new InvalidOperationException("SUPABASE_JWT_SECRET is missing");
@@ -102,7 +98,7 @@ builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy())
     .AddCheck<SupabaseHealthCheck>("supabase");
 
-// Swagger (only enabled in Development)
+// Swagger configuration (always enabled)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -141,48 +137,23 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// Middlewares - CORS should be early in the pipeline
+// Exception middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-// Enable Swagger in all environments for now (you can restrict later)
+// CORS — must be before Swagger, Authentication, Authorization
+app.UseCors("AllowSpecificOrigins");
+
+// Swagger always available
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// CORS must come before Authentication and Authorization
-app.UseCors();
-
+// Auth
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Endpoints
 app.MapHealthChecks("/health");
 app.MapControllers();
-
-// Add CORS headers to all responses (additional safety net)
-app.Use(async (context, next) =>
-{
-    var origin = context.Request.Headers["Origin"].ToString();
-    var allowedOrigins = new[] {
-        "https://preview--talesmith-frontend.lovable.app",
-        "http://localhost:8080"
-    };
-
-    if (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
-    {
-        context.Response.Headers.Add("Access-Control-Allow-Origin", origin);
-        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
-        context.Response.Headers.Add("Access-Control-Allow-Headers", "*");
-        context.Response.Headers.Add("Access-Control-Allow-Methods", "*");
-    }
-
-    // Handle preflight requests
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.StatusCode = 200;
-        return;
-    }
-
-    await next();
-});
 
 // Seed data
 using (var scope = app.Services.CreateScope())
@@ -200,5 +171,4 @@ using (var scope = app.Services.CreateScope())
 }
 
 Log.Information("TaleTrail API is running!");
-
 app.Run();
