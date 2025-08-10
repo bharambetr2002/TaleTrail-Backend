@@ -42,7 +42,7 @@ builder.Services.AddCors(options =>
         // Your specific allowed origins
         var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',')
             ?? new[] {
-                "https://preview--talesmith-frontend.lovable.app",
+                "https://taletrail-app.netlify.app",
                 "http://localhost:8080"
             };
 
